@@ -36,7 +36,7 @@ typedef struct
 typedef struct
 {
   long start;
-  int end;
+  long end;
 } range_t;
 
 typedef struct
@@ -73,8 +73,8 @@ typedef struct
   paths_t *paths;
   int paths_len;
   path_elem_t *current_path;
-  int current_depth;
-  int max_depth;
+  int current_path_len;
+  int max_path_len;
   // Easier to use a Ruby array for result than convert later
   VALUE points_list;
   // by depth
@@ -123,15 +123,15 @@ scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
   scan_ctx *ctx = ruby_xmalloc(sizeof(scan_ctx));
 
   ctx->with_path = RB_TEST(with_path);
-  ctx->max_depth = 0;
+  ctx->max_path_len = 0;
 
   paths_t *paths = ruby_xmalloc(sizeof(paths_t) * path_ary_len);
   for (int i = 0; i < path_ary_len; i++)
   {
     VALUE path = rb_ary_entry(path_ary, i);
     int path_len = rb_long2int(rb_array_len(path));
-    if (path_len > ctx->max_depth)
-      ctx->max_depth = path_len;
+    if (path_len > ctx->max_path_len)
+      ctx->max_path_len = path_len;
     paths[i].elems = ruby_xmalloc2(sizeof(path_matcher_elem_t), path_len);
     for (int j = 0; j < path_len; j++)
     {
@@ -170,16 +170,16 @@ scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
 
   ctx->paths = paths;
   ctx->paths_len = path_ary_len;
-  ctx->current_path = xmalloc2(sizeof(path_elem_t), ctx->max_depth);
+  ctx->current_path = xmalloc2(sizeof(path_elem_t), ctx->max_path_len);
 
-  ctx->current_depth = 0;
+  ctx->current_path_len = 0;
   ctx->points_list = rb_ary_new_capa(path_ary_len);
   for (int i = 0; i < path_ary_len; i++)
   {
     rb_ary_push(ctx->points_list, rb_ary_new());
   }
 
-  ctx->starts = xmalloc2(sizeof(size_t), ctx->max_depth);
+  ctx->starts = xmalloc2(sizeof(size_t), ctx->max_path_len);
   // ctx->rb_err = Qnil;
   ctx->handle = NULL;
 
@@ -203,16 +203,17 @@ void scan_ctx_free(scan_ctx *ctx)
 // noexcept
 void inline increment_arr_index(scan_ctx *sctx)
 {
-  if (sctx->current_path[sctx->current_depth].type == PATH_INDEX)
+  // TODO?
+  if (sctx->current_path[sctx->current_path_len].type == PATH_INDEX)
   {
-    sctx->current_path[sctx->current_depth].value.index++;
+    sctx->current_path[sctx->current_path_len].value.index++;
   }
 }
 
 // noexcept
 void inline save_start_pos(scan_ctx *sctx)
 {
-  sctx->starts[sctx->current_depth] = yajl_get_bytes_consumed(sctx->handle) - 1;
+  sctx->starts[sctx->current_path_len] = yajl_get_bytes_consumed(sctx->handle) - 1;
 }
 
 typedef enum
@@ -252,11 +253,11 @@ void create_point(VALUE *point, scan_ctx *sctx, value_type type, size_t length, 
     values[2] = null_sym;
     break;
   case object_value:
-    values[0] = RB_ULONG2NUM(sctx->starts[sctx->current_depth]);
+    values[0] = RB_ULONG2NUM(sctx->starts[sctx->current_path_len]);
     values[2] = object_sym;
     break;
   case array_value:
-    values[0] = RB_ULONG2NUM(sctx->starts[sctx->current_depth]);
+    values[0] = RB_ULONG2NUM(sctx->starts[sctx->current_path_len]);
     values[2] = array_sym;
     break;
   }
@@ -271,11 +272,11 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
   VALUE point = Qundef;
   for (int i = 0; i < sctx->paths_len; i++)
   {
-    if (sctx->paths[i].len != sctx->current_depth)
+    if (sctx->paths[i].len != sctx->current_path_len)
       continue;
 
     int match = true;
-    for (int j = 0; j < sctx->current_depth; j++)
+    for (int j = 0; j < sctx->current_path_len; j++)
     {
       switch (sctx->paths[i].elems[j].type)
       {
@@ -317,7 +318,7 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
 int scan_on_null(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_depth >= sctx->max_depth)
+  if (sctx->current_path_len >= sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
   save_point(sctx, null_value, 4);
@@ -328,7 +329,7 @@ int scan_on_null(void *ctx)
 int scan_on_boolean(void *ctx, int bool_val)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_depth >= sctx->max_depth)
+  if (sctx->current_path_len >= sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
   save_point(sctx, boolean_value, bool_val ? 4 : 5);
@@ -339,7 +340,7 @@ int scan_on_boolean(void *ctx, int bool_val)
 int scan_on_number(void *ctx, const char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_depth >= sctx->max_depth)
+  if (sctx->current_path_len >= sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
   save_point(sctx, number_value, len);
@@ -350,7 +351,7 @@ int scan_on_number(void *ctx, const char *val, size_t len)
 int scan_on_string(void *ctx, const unsigned char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_depth >= sctx->max_depth)
+  if (sctx->current_path_len >= sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
   save_point(sctx, string_value, len + 2);
@@ -361,14 +362,15 @@ int scan_on_string(void *ctx, const unsigned char *val, size_t len)
 int scan_on_start_object(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_depth >= sctx->max_depth)
+  if (sctx->current_path_len >= sctx->max_path_len)
+  {
+    sctx->current_path_len++;
     return true;
+  }
   increment_arr_index(sctx);
   save_start_pos(sctx);
-  sctx->current_depth++;
-  if (sctx->current_depth >= sctx->max_depth)
-    return true;
-  sctx->current_path[sctx->current_depth].type = PATH_KEY;
+  sctx->current_path[sctx->current_path_len].type = PATH_KEY;
+  sctx->current_path_len++;
   return true;
 }
 
@@ -376,11 +378,11 @@ int scan_on_start_object(void *ctx)
 int scan_on_key(void *ctx, const unsigned char *key, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_depth >= sctx->max_depth)
+  if (sctx->current_path_len >= sctx->max_path_len)
     return true;
-  // sctx->current_path[sctx->current_depth].type = PATH_KEY;
-  sctx->current_path[sctx->current_depth].value.key.val = key;
-  sctx->current_path[sctx->current_depth].value.key.len = len;
+  // sctx->current_path[sctx->current_path_len].type = PATH_KEY;
+  sctx->current_path[sctx->current_path_len].value.key.val = key;
+  sctx->current_path[sctx->current_path_len].value.key.len = len;
   return true;
 }
 
@@ -388,10 +390,9 @@ int scan_on_key(void *ctx, const unsigned char *key, size_t len)
 int scan_on_end_object(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  sctx->current_depth--;
-  if (sctx->current_depth >= sctx->max_depth)
+  sctx->current_path_len--;
+  if (sctx->current_path_len >= sctx->max_path_len)
     return true;
-
   save_point(sctx, object_value, 0);
   return true;
 }
@@ -400,15 +401,16 @@ int scan_on_end_object(void *ctx)
 int scan_on_start_array(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_depth >= sctx->max_depth)
+  if (sctx->current_path_len >= sctx->max_path_len)
+  {
+    sctx->current_path_len++;
     return true;
+  }
   increment_arr_index(sctx);
   save_start_pos(sctx);
-  sctx->current_depth++;
-  if (sctx->current_depth >= sctx->max_depth)
-    return true;
-  sctx->current_path[sctx->current_depth].type = PATH_INDEX;
-  sctx->current_path[sctx->current_depth].value.index = -1;
+  sctx->current_path[sctx->current_path_len].type = PATH_INDEX;
+  sctx->current_path[sctx->current_path_len].value.index = -1;
+  sctx->current_path_len++;
   return true;
 }
 
@@ -416,10 +418,10 @@ int scan_on_start_array(void *ctx)
 int scan_on_end_array(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  sctx->current_depth--;
-  if (sctx->current_depth >= sctx->max_depth)
+  sctx->current_path_len--;
+  if (sctx->current_path_len >= sctx->max_path_len)
     return true;
-  save_point(sctx, object_value, 0);
+  save_point(sctx, array_value, 0);
   return true;
 }
 
