@@ -1,42 +1,32 @@
 # frozen_string_literal: true
 
-require_relative "lib/json_scanner/version"
+require_relative 'lib/json_scanner/version'
 
 Gem::Specification.new do |spec|
-  spec.name = "json_scanner"
+  spec.name = 'json_scanner'
   spec.version = JsonScanner::VERSION
-  spec.authors = ["uvlad7"]
-  spec.email = ["uvlad7@gmail.com"]
+  spec.authors = ['uvlad7']
+  spec.email = ['uvlad7@gmail.com']
 
-  spec.summary = "TODO: Write a short summary, because RubyGems requires one."
-  spec.description = "TODO: Write a longer description or delete this line."
-  spec.homepage = "TODO: Put your gem's website or public repo URL here."
-  spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.0.0"
+  spec.summary = 'Extract values from JSON without full parsing'
+  spec.description = 'This gem uses yajl lib to scan a json string and allows you to parse pieces of it'
+  spec.homepage = 'https://github.com/uvlad7/json_scanner'
+  spec.license = 'MIT'
+  spec.required_ruby_version = '>= 2.3.8'
+  spec.requirements = ['libyajl2, v2.1', 'libyajl-dev, v2.1']
 
-  spec.metadata["allowed_push_host"] = "TODO: Set to your gem server 'https://example.com'"
-
-  spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "TODO: Put your gem's public repo URL here."
-  spec.metadata["changelog_uri"] = "TODO: Put your gem's CHANGELOG.md URL here."
+  spec.metadata['homepage_uri'] = spec.homepage
+  spec.metadata['source_code_uri'] = 'https://github.com/uvlad7/json_scanner'
+  spec.metadata['changelog_uri'] = 'https://github.com/uvlad7/json_scanner/CHANGELOG.md'
 
   # Specify which files should be added to the gem when it is released.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
-  gemspec = File.basename(__FILE__)
-  spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL) do |ls|
-    ls.readlines("\x0", chomp: true).reject do |f|
-      (f == gemspec) ||
-        f.start_with?(*%w[bin/ test/ spec/ features/ .git .github appveyor Gemfile])
-    end
-  end
-  spec.bindir = "exe"
-  spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
-  spec.require_paths = ["lib"]
-  spec.extensions = ["ext/json_scanner/extconf.rb"]
-
-  # Uncomment to register a new dependency of your gem
-  # spec.add_dependency "example-gem", "~> 1.0"
-
-  # For more information and examples about making a new gem, check out our
-  # guide at: https://bundler.io/guides/creating_gem.html
+  File.basename(__FILE__)
+  spec.files = [
+    *(Dir['{lib,sig,spec}/**/*'] - Dir['lib/**/*.{so,dylib,dll}']),
+    *Dir['ext/json_scanner/{extconf.rb,json_scanner.c,json_scanner.h}'], 'README.md',
+  ].reject { |f| File.directory?(f) }
+  spec.require_paths = ['lib']
+  spec.extensions = ['ext/json_scanner/extconf.rb']
+  spec.metadata['rubygems_mfa_required'] = 'true'
 end

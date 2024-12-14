@@ -1,0 +1,30 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/vladimir/.local/share/rtx/installs/ruby/2.7.8/include/ruby-2.7.0",
+                "/home/vladimir/.local/share/rtx/installs/ruby/2.7.8/include/ruby-2.7.0/ruby",
+                "/home/vladimir/.local/share/rtx/installs/ruby/2.7.8/include/ruby-2.7.0/x86_64-linux"
+            ],
+            "defines": [],
+            "compilerPath": "/home/linuxbrew/.linuxbrew/opt/llvm@15/bin/clang",
+            "cStandard": "c17",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "linux-clang-x64"
+        },
+        {
+            "name": "Ruby2.7",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "compilerPath": "/home/linuxbrew/.linuxbrew/opt/llvm@15/bin/clang",
+            "cStandard": "c17",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}
