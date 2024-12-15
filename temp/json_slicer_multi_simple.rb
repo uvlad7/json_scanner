@@ -201,6 +201,7 @@ class JsonSlicer
 
     @callbacks[:on_end_array] = ::FFI::Function.new(:int, [:pointer]) do |ctx|
       @current_path.pop
+      p @current_path
       save_point([@starts[@current_path.length], YajlFFI::get_bytes_consumed(@handle) - @starts[@current_path.length], :array])
 
       YajlFFI::CONTINUE_PARSE
@@ -236,79 +237,79 @@ class JsonSlicer
   end
 end
 
-require 'json'
+# require 'json'
 
-puts '---'
+# puts '---'
 
-data = '{"foo": {"bar": ["baz", 42, 42.2, false, [42], {"a": "b"}]} /* comment */}______'
-data.force_encoding(Encoding::ASCII_8BIT)
-JsonSlicer.slice(
-  data,
-  [
-    ['foo', 'bar', JsonSlicer::ALL],
-  ],
-  allow_trailing_garbage: true,
-  allow_invalid_utf8: true,
-  allow_comments: true,
-).each do |indices|
-  puts
-  indices.each do |start, len, type, val|
-    p JSON.parse(data[start, len], quirks_mode: true)
-  end
-end
+# data = '{"foo": {"bar": ["baz", 42, 42.2, false, [42], {"a": "b"}]} /* comment */}______'
+# data.force_encoding(Encoding::ASCII_8BIT)
+# JsonSlicer.slice(
+#   data,
+#   [
+#     ['foo', 'bar', JsonSlicer::ALL],
+#   ],
+#   allow_trailing_garbage: true,
+#   allow_invalid_utf8: true,
+#   allow_comments: true,
+# ).each do |indices|
+#   puts
+#   indices.each do |start, len, type, val|
+#     p JSON.parse(data[start, len], quirks_mode: true)
+#   end
+# end
 
-puts '---'
+# puts '---'
 
-data = '[[[1, 2], [3, 4]], [[5, 6], [7, 8, 9, 10]]]'
-data.force_encoding(Encoding::ASCII_8BIT)
-JsonSlicer.slice(
-  data,
-  [
-    [JsonSlicer::ALL, 1, (0..2)],
-  ],
-).each do |indices|
-  puts
-  indices.each do |start, len, type, val|
-    p data[start, len]
-  end
-end
+# data = '[[[1, 2], [3, 4]], [[5, 6], [7, 8, 9, 10]]]'
+# data.force_encoding(Encoding::ASCII_8BIT)
+# JsonSlicer.slice(
+#   data,
+#   [
+#     [JsonSlicer::ALL, 1, (0..2)],
+#   ],
+# ).each do |indices|
+#   puts
+#   indices.each do |start, len, type, val|
+#     p data[start, len]
+#   end
+# end
 
-puts '---'
+# puts '---'
 
-data = '[{"a": 1}, {"a": 2}, {"a": 3}]'
-data.force_encoding(Encoding::ASCII_8BIT)
-JsonSlicer.slice(
-  data,
-  [
-    [JsonSlicer::ALL, 'a'],
-    [1],
-    [],
-  ],
-).each do |indices|
-  puts
-  p indices
-  indices.each do |start, len, type, val|
-    p data[start, len]
-  end
-end
+# data = '[{"a": 1}, {"a": 2}, {"a": 3}]'
+# data.force_encoding(Encoding::ASCII_8BIT)
+# JsonSlicer.slice(
+#   data,
+#   [
+#     [JsonSlicer::ALL, 'a'],
+#     [1],
+#     [],
+#   ],
+# ).each do |indices|
+#   puts
+#   p indices
+#   indices.each do |start, len, type, val|
+#     p data[start, len]
+#   end
+# end
 
 
-puts '---'
+# puts '---'
 
-data = '[{"a": 1}, {"a": 2}, {"a": 3}]'
-data.force_encoding(Encoding::ASCII_8BIT)
-JsonSlicer.slice(
-  data,
-  [
-    [JsonSlicer::ALL, 'a'],
-    [1],
-    [],
-  ],
-  with_path: true,
-).each do |indices|
-  p indices
-end
+# data = '[{"a": 1}, {"a": 2}, {"a": 3}]'
+# data.force_encoding(Encoding::ASCII_8BIT)
+# JsonSlicer.slice(
+#   data,
+#   [
+#     [JsonSlicer::ALL, 'a'],
+#     [1],
+#     [],
+#   ],
+#   with_path: true,
+# ).each do |indices|
+#   p indices
+# end
 
-puts '---'
-p JsonSlicer.slice('[[1],[2]]'.force_encoding(Encoding::ASCII_8BIT), [[]])
+# puts '---'
+# p JsonSlicer.slice('[[1],[2]]'.force_encoding(Encoding::ASCII_8BIT), [[]])
 p JsonSlicer.slice('[[1],[2]]'.force_encoding(Encoding::ASCII_8BIT), [[0]])

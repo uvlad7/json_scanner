@@ -2,6 +2,8 @@ AllCops:
   NewCops: enable
   TargetRubyVersion: 2.3
   SuggestExtensions: false
+  Exclude:
+    - 'temp/**/*'
 
 Style/FrozenStringLiteralComment:
   Enabled: true

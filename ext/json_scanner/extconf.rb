@@ -10,7 +10,7 @@ append_cflags("-fvisibility=hidden")
 dir_config("yajl", "", "")
 
 unless have_library("yajl") && have_header("yajl/yajl_parse.h") && have_header("yajl/yajl_gen.h")
-    abort "yajl library not found"
+  abort "yajl library not found"
 end
 
 create_makefile("json_scanner/json_scanner")

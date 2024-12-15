@@ -83,12 +83,14 @@ typedef struct
   yajl_handle handle;
 } scan_ctx;
 
+// FIXME: This will cause memory leak if ruby_xmalloc raises
 scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
 {
   // TODO: Allow to_ary and sized enumerables
   rb_check_type(path_ary, T_ARRAY);
   int path_ary_len = rb_long2int(rb_array_len(path_ary));
   // Check types early before any allocations, so exception is ok
+  // TODO: Fix this, just handle errors
   for (int i = 0; i < path_ary_len; i++)
   {
     VALUE path = rb_ary_entry(path_ary, i);
@@ -113,7 +115,7 @@ scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
         VALUE range_beg, range_end;
         int open_ended;
         if (rb_range_values(entry, &range_beg, &range_end, &open_ended) != Qtrue)
-          rb_raise(rb_eArgError, "path elements must be strings, integers, or close-ended ranges");
+          rb_raise(rb_eArgError, "path elements must be strings, integers, or ranges");
         RB_NUM2LONG(range_beg);
         RB_NUM2LONG(range_end);
       }
@@ -161,7 +163,7 @@ scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
         paths[i].elems[j].value.range.start = RB_NUM2LONG(range_beg);
         paths[i].elems[j].value.range.end = RB_NUM2LONG(range_end);
         if (open_ended)
-          paths[i].elems[j].value.range.end = -1;
+          paths[i].elems[j].value.range.end--;
       }
     }
     paths[i].len = path_len;
@@ -170,7 +172,7 @@ scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
 
   ctx->paths = paths;
   ctx->paths_len = path_ary_len;
-  ctx->current_path = xmalloc2(sizeof(path_elem_t), ctx->max_path_len);
+  ctx->current_path = ruby_xmalloc2(sizeof(path_elem_t), ctx->max_path_len);
 
   ctx->current_path_len = 0;
   ctx->points_list = rb_ary_new_capa(path_ary_len);
@@ -179,15 +181,13 @@ scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
     rb_ary_push(ctx->points_list, rb_ary_new());
   }
 
-  ctx->starts = xmalloc2(sizeof(size_t), ctx->max_path_len);
+  ctx->starts = ruby_xmalloc2(sizeof(size_t), ctx->max_path_len);
   // ctx->rb_err = Qnil;
   ctx->handle = NULL;
 
   return ctx;
 }
 
-// Fixme munmap_chunk(): invalid pointer
-// JsonScanner.scan '[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]', [[0,0,0,0,0,0,0]], true + Ctrl+D
 void scan_ctx_free(scan_ctx *ctx)
 {
   if (!ctx)
@@ -205,7 +205,8 @@ void scan_ctx_free(scan_ctx *ctx)
 // noexcept
 void inline increment_arr_index(scan_ctx *sctx)
 {
-  // TODO?
+  // remember - any value can be root
+  // TODO: Maybe make current_path_len 1 shorter and get rid of -1; need to change all compares
   if (sctx->current_path_len && sctx->current_path[sctx->current_path_len - 1].type == PATH_INDEX)
   {
     sctx->current_path[sctx->current_path_len - 1].value.index++;
@@ -264,7 +265,8 @@ void create_point(VALUE *point, scan_ctx *sctx, value_type type, size_t length, 
 // noexcept
 void save_point(scan_ctx *sctx, value_type type, size_t length)
 {
-  // TODO: Abort parsing if all paths are matched
+  // TODO: Abort parsing if all paths are matched and no more mathces are possible: only trivial key/index matchers at the current level
+  // TODO: Don't re-compare already matched prefixes; hard to invalidate, though
   VALUE point = Qundef;
   for (int i = 0; i < sctx->paths_len; i++)
   {
@@ -379,7 +381,8 @@ int scan_on_key(void *ctx, const unsigned char *key, size_t len)
   scan_ctx *sctx = (scan_ctx *)ctx;
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
-  // sctx->current_path[sctx->current_path_len - 1].type = PATH_KEY;
+  // Can't be called without scan_on_start_object being called before
+  // So current_path_len at least 1 and key.type is set to PATH_KEY;
   sctx->current_path[sctx->current_path_len - 1].value.key.val = key;
   sctx->current_path[sctx->current_path_len - 1].value.key.len = len;
   return true;
@@ -440,6 +443,7 @@ static yajl_callbacks scan_callbacks = {
     scan_on_start_array,
     scan_on_end_array};
 
+// TODO: make with_path optional kw: `with_path: false`
 VALUE scan(VALUE self, VALUE json_str, VALUE path_ary, VALUE with_path)
 {
   rb_check_type(json_str, T_STRING);
@@ -461,8 +465,9 @@ VALUE scan(VALUE self, VALUE json_str, VALUE path_ary, VALUE with_path)
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
   ctx->handle = handle;
-  yajl_config(handle, yajl_allow_comments, true);
-  yajl_config(handle, yajl_allow_trailing_garbage, true);
+  // TODO: make it configurable
+  // yajl_config(handle, yajl_allow_comments, true);
+  // yajl_config(handle, yajl_allow_trailing_garbage, true);
   stat = yajl_parse(handle, json_text, json_text_len);
   if (stat == yajl_status_ok)
     stat = yajl_complete_parse(handle);
