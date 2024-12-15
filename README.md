@@ -24,9 +24,16 @@ large_json = "[#{"4," * 100_000}42#{",2" * 100_000}]"
 where_is_42 = JsonScanner.scan(large_json, [[100_000]], false).first
 # => [[200001, 200003, :number]]
 where_is_42.map do |begin_pos, end_pos, _type|
-  JSON.parse(large_json[begin_pos...end_pos], quirks_mode: true)
+  JSON.parse(large_json.byteslice(begin_pos...end_pos), quirks_mode: true)
 end
 # => [42]
+
+emoji_json = '{"grin": "😁", "heart": "😍", "rofl": "🤣"}'
+begin_pos, end_pos, = JsonScanner.scan(emoji_json, [["heart"]], false).first.first
+emoji_json.byteslice(begin_pos...end_pos)
+# => "\"😍\""
+emoji_json.force_encoding(Encoding::BINARY)[begin_pos...end_pos].force_encoding(Encoding::UTF_8)
+# => "\"😍\""
 ```
 
 ## Development
