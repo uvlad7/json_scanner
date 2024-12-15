@@ -4,7 +4,7 @@ require_relative "spec_helper"
 
 RSpec.describe JsonScanner do
   it "has a version number" do
-    expect(described_class::VERSION).not_to be nil
+    expect(described_class::VERSION).not_to be_nil
   end
 
   it "scans json" do
@@ -19,6 +19,9 @@ RSpec.describe JsonScanner do
     expect(described_class.scan('{"a": 1}', [["a"], []], false)).to eq(
       [[[6, 7, :number]], [[0, 8, :object]]]
     )
+  end
+
+  it "raises on invalid json" do
     expect do
       begin
         GC.stress = true
@@ -33,5 +36,30 @@ RSpec.describe JsonScanner do
         GC.stress = false
       end
     end.to raise_error described_class::ParseError
+  end
+
+  it "allows to select ranges" do
+    expect(
+      described_class.scan("[[1,2],[3,4]]", [[described_class::ALL, described_class::ALL]], false)
+    ).to eq(
+      [[[2, 3, :number], [4, 5, :number], [8, 9, :number], [10, 11, :number]]]
+    )
+    expect(
+      described_class.scan("[[1,2],[3,4]]", [[described_class::ALL, (0...1)]], false)
+    ).to eq(
+      [[[2, 3, :number], [8, 9, :number]]]
+    )
+  end
+
+  it "allows only positive or -1 values" do
+    expect do
+      described_class.scan("[[1,2],[3,4]]", [[(0...-1)]], false)
+    end.to raise_error ArgumentError
+    expect do
+      described_class.scan("[[1,2],[3,4]]", [[(0..-2)]], false)
+    end.to raise_error ArgumentError
+    expect do
+      described_class.scan("[[1,2],[3,4]]", [[(-42..1)]], false)
+    end.to raise_error ArgumentError
   end
 end

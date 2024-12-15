@@ -3,11 +3,11 @@ AllCops:
   TargetRubyVersion: 2.3
   SuggestExtensions: false
   Exclude:
-    - 'node_modules/**/*'
-    - 'tmp/**/*'
-    - 'vendor/**/*'
-    - '.git/**/*'
-    - 'temp/**/*'
+    - "node_modules/**/*"
+    - "tmp/**/*"
+    - "vendor/**/*"
+    - ".git/**/*"
+    - "temp/**/*"
 
 Style/FrozenStringLiteralComment:
   Enabled: true
@@ -20,3 +20,13 @@ Style/StringLiteralsInInterpolation:
 
 Layout/LineLength:
   Max: 120
+
+require: rubocop-rspec
+
+RSpec/MultipleExpectations:
+  Max: 5
+RSpec/ExampleLength:
+  Max: 20
+Metrics/BlockLength:
+  Exclude:
+    - "spec/**/*"

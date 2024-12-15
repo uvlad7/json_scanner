@@ -117,11 +117,17 @@ scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
       else
       {
         VALUE range_beg, range_end;
+        long end_val;
         int open_ended;
         if (rb_range_values(entry, &range_beg, &range_end, &open_ended) != Qtrue)
           rb_raise(rb_eArgError, "path elements must be strings, integers, or ranges");
-        RB_NUM2LONG(range_beg);
-        RB_NUM2LONG(range_end);
+        if (RB_NUM2LONG(range_beg) < 0L)
+          rb_raise(rb_eArgError, "range start must be positive");
+        end_val = RB_NUM2LONG(range_end);
+        if (end_val < -1L)
+          rb_raise(rb_eArgError, "range end must be positive or -1");
+        if (end_val == -1L && open_ended)
+          rb_raise(rb_eArgError, "range with -1 end must be closed");
       }
     }
   }
@@ -167,6 +173,10 @@ scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
         rb_range_values(entry, &range_beg, &range_end, &open_ended);
         paths[i].elems[j].value.range.start = RB_NUM2LONG(range_beg);
         paths[i].elems[j].value.range.end = RB_NUM2LONG(range_end);
+        // (value..-1) works as expected, (value...-1) is forbidden above
+        if (paths[i].elems[j].value.range.end == -1L)
+          paths[i].elems[j].value.range.end = LONG_MAX;
+        // -1 here is fine, so, (0...0) works just as expected - doesn't match anything
         if (open_ended)
           paths[i].elems[j].value.range.end--;
       }

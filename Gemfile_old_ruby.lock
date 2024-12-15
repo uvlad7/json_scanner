@@ -40,6 +40,8 @@ GEM
       rexml
       ruby-progressbar (~> 1.7)
       unicode-display_width (>= 1.4.0, < 2.0)
+    rubocop-rspec (1.38.1)
+      rubocop (>= 0.68.1)
     ruby-progressbar (1.13.0)
     unicode-display_width (1.8.0)
 
@@ -52,6 +54,7 @@ DEPENDENCIES
   rake-compiler (~> 1.2)
   rspec (~> 3.0)
   rubocop (~> 0.81)
+  rubocop-rspec (~> 1.38)
 
 BUNDLED WITH
    2.3.27

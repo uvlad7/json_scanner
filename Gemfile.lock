@@ -47,6 +47,8 @@ GEM
       unicode-display_width (>= 2.4.0, < 4.0)
     rubocop-ast (1.36.2)
       parser (>= 3.3.1.0)
+    rubocop-rspec (3.3.0)
+      rubocop (~> 1.61)
     ruby-progressbar (1.13.0)
     ruby_memcheck (2.3.0)
       nokogiri
@@ -63,6 +65,7 @@ DEPENDENCIES
   rake-compiler (~> 1.2)
   rspec (~> 3.0)
   rubocop (~> 1.69)
+  rubocop-rspec (~> 3.3)
   ruby_memcheck (~> 2.3)
 
 BUNDLED WITH
