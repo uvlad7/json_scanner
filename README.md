@@ -1,3 +1,5 @@
+[![Tests](https://github.com/uvlad7/json_scanner/actions/workflows/main.yml/badge.svg)](https://github.com/uvlad7/json_scanner/actions/workflows/main.yml)
+
 # JsonScanner
 
 Extract values from JSON without full parsing. This gem uses yajl lib to scan a json string and allows you to parse pieces of it.
