@@ -11,6 +11,8 @@ gem "rake-compiler", "~> 1.2"
 
 gem "rspec", "~> 3.0"
 
-gem "rubocop", "~> 1.69"
+gem "rubocop", RUBY_VERSION >= "2.7" ? "~> 1.69" : "~> 0.81"
 
-gem "ruby_memcheck", "~> 2.3"
+# No requirement, but uses syntax from 2.5
+
+gem "ruby_memcheck", "~> 2.3" if RUBY_VERSION >= "2.5"

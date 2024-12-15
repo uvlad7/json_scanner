@@ -86,16 +86,20 @@ typedef struct
 // FIXME: This will cause memory leak if ruby_xmalloc raises
 scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
 {
+  int path_ary_len;
+  scan_ctx *ctx;
+  paths_t *paths;
   // TODO: Allow to_ary and sized enumerables
   rb_check_type(path_ary, T_ARRAY);
-  int path_ary_len = rb_long2int(rb_array_len(path_ary));
+  path_ary_len = rb_long2int(rb_array_len(path_ary));
   // Check types early before any allocations, so exception is ok
   // TODO: Fix this, just handle errors
   for (int i = 0; i < path_ary_len; i++)
   {
+    int path_len;
     VALUE path = rb_ary_entry(path_ary, i);
     rb_check_type(path, T_ARRAY);
-    int path_len = rb_long2int(rb_array_len(path));
+    path_len = rb_long2int(rb_array_len(path));
     for (int j = 0; j < path_len; j++)
     {
       VALUE entry = rb_ary_entry(path, j);
@@ -122,16 +126,17 @@ scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
     }
   }
 
-  scan_ctx *ctx = ruby_xmalloc(sizeof(scan_ctx));
+  ctx = ruby_xmalloc(sizeof(scan_ctx));
 
-  ctx->with_path = RB_TEST(with_path);
+  ctx->with_path = RTEST(with_path);
   ctx->max_path_len = 0;
 
-  paths_t *paths = ruby_xmalloc(sizeof(paths_t) * path_ary_len);
+  paths = ruby_xmalloc(sizeof(paths_t) * path_ary_len);
   for (int i = 0; i < path_ary_len; i++)
   {
+    int path_len;
     VALUE path = rb_ary_entry(path_ary, i);
-    int path_len = rb_long2int(rb_array_len(path));
+    path_len = rb_long2int(rb_array_len(path));
     if (path_len > ctx->max_path_len)
       ctx->max_path_len = path_len;
     paths[i].elems = ruby_xmalloc2(sizeof(path_matcher_elem_t), path_len);
@@ -156,9 +161,9 @@ scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
       }
       else
       {
-        paths[i].elems[j].type = MATCHER_INDEX_RANGE;
         VALUE range_beg, range_end;
         int open_ended;
+        paths[i].elems[j].type = MATCHER_INDEX_RANGE;
         rb_range_values(entry, &range_beg, &range_end, &open_ended);
         paths[i].elems[j].value.range.start = RB_NUM2LONG(range_beg);
         paths[i].elems[j].value.range.end = RB_NUM2LONG(range_end);
@@ -226,8 +231,8 @@ typedef enum
 // noexcept
 void create_point(VALUE *point, scan_ctx *sctx, value_type type, size_t length, size_t curr_pos)
 {
-  *point = rb_ary_new_capa(3);
   VALUE values[3];
+  *point = rb_ary_new_capa(3);
   // noexcept
   values[1] = RB_ULONG2NUM(curr_pos);
   switch (type)
@@ -268,12 +273,13 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
   // TODO: Abort parsing if all paths are matched and no more mathces are possible: only trivial key/index matchers at the current level
   // TODO: Don't re-compare already matched prefixes; hard to invalidate, though
   VALUE point = Qundef;
+  int match;
   for (int i = 0; i < sctx->paths_len; i++)
   {
     if (sctx->paths[i].len != sctx->current_path_len)
       continue;
 
-    int match = true;
+    match = true;
     for (int j = 0; j < sctx->current_path_len; j++)
     {
       switch (sctx->paths[i].elems[j].type)
@@ -383,7 +389,7 @@ int scan_on_key(void *ctx, const unsigned char *key, size_t len)
     return true;
   // Can't be called without scan_on_start_object being called before
   // So current_path_len at least 1 and key.type is set to PATH_KEY;
-  sctx->current_path[sctx->current_path_len - 1].value.key.val = (char *) key;
+  sctx->current_path[sctx->current_path_len - 1].value.key.val = (char *)key;
   sctx->current_path[sctx->current_path_len - 1].value.key.len = len;
   return true;
 }
@@ -446,37 +452,39 @@ static yajl_callbacks scan_callbacks = {
 // TODO: make with_path optional kw: `with_path: false`
 VALUE scan(VALUE self, VALUE json_str, VALUE path_ary, VALUE with_path)
 {
-  rb_check_type(json_str, T_STRING);
-  char *json_text = RSTRING_PTR(json_str);
-#if LONG_MAX > SIZE_MAX
-  size_t json_text_len = RSTRING_LENINT(json_str);
-#else
-  size_t json_text_len = RSTRING_LEN(json_str);
-#endif
+  char *json_text;
+  size_t json_text_len;
   yajl_handle handle;
-  // TODO
-  int opt_verbose_error = 0;
   yajl_status stat;
-  scan_ctx *ctx = scan_ctx_init(path_ary, with_path);
-  VALUE err = Qnil;
-  VALUE result;
+  scan_ctx *ctx;
+  VALUE err = Qnil, result;
   // Turned out callbacks can't raise exceptions
   // VALUE callback_err;
+  // TODO
+  int opt_verbose_error = 0;
+  rb_check_type(json_str, T_STRING);
+  json_text = RSTRING_PTR(json_str);
+#if LONG_MAX > SIZE_MAX
+  json_text_len = RSTRING_LENINT(json_str);
+#else
+  json_text_len = RSTRING_LEN(json_str);
+#endif
+  ctx = scan_ctx_init(path_ary, with_path);
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
   ctx->handle = handle;
   // TODO: make it configurable
   // yajl_config(handle, yajl_allow_comments, true);
   // yajl_config(handle, yajl_allow_trailing_garbage, true);
-  stat = yajl_parse(handle, (unsigned char *) json_text, json_text_len);
+  stat = yajl_parse(handle, (unsigned char *)json_text, json_text_len);
   if (stat == yajl_status_ok)
     stat = yajl_complete_parse(handle);
 
   if (stat != yajl_status_ok)
   {
-    char *str = (char *) yajl_get_error(handle, opt_verbose_error, (unsigned char *) json_text, json_text_len);
+    char *str = (char *)yajl_get_error(handle, opt_verbose_error, (unsigned char *)json_text, json_text_len);
     err = rb_str_new_cstr(str);
-    yajl_free_error(handle, (unsigned char *) str);
+    yajl_free_error(handle, (unsigned char *)str);
   }
   // callback_err = ctx->rb_err;
   result = ctx->points_list;

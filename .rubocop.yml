@@ -3,8 +3,11 @@ AllCops:
   TargetRubyVersion: 2.3
   SuggestExtensions: false
   Exclude:
+    - 'node_modules/**/*'
+    - 'tmp/**/*'
+    - 'vendor/**/*'
+    - '.git/**/*'
     - 'temp/**/*'
-    - vendor/bundle/**/*
 
 Style/FrozenStringLiteralComment:
   Enabled: true
@@ -14,3 +17,6 @@ Style/StringLiterals:
 
 Style/StringLiteralsInInterpolation:
   EnforcedStyle: double_quotes
+
+Layout/LineLength:
+  Max: 120

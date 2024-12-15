@@ -23,10 +23,12 @@ end
 
 task default: %i[clobber compile spec rubocop]
 
-require "ruby_memcheck"
-require "ruby_memcheck/rspec/rake_task"
+if RUBY_VERSION >= "2.5"
+  require "ruby_memcheck"
+  require "ruby_memcheck/rspec/rake_task"
 
-RubyMemcheck.config(skipped_ruby_functions: ["objspace_malloc_gc_stress"])
-namespace :spec do
-  RubyMemcheck::RSpec::RakeTask.new(valgrind: :compile)
+  RubyMemcheck.config(skipped_ruby_functions: ["objspace_malloc_gc_stress"])
+  namespace :spec do
+    RubyMemcheck::RSpec::RakeTask.new(valgrind: :compile)
+  end
 end
