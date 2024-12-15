@@ -203,7 +203,7 @@ void scan_ctx_free(scan_ctx *ctx)
 }
 
 // noexcept
-void inline increment_arr_index(scan_ctx *sctx)
+inline void increment_arr_index(scan_ctx *sctx)
 {
   // remember - any value can be root
   // TODO: Maybe make current_path_len 1 shorter and get rid of -1; need to change all compares
@@ -301,7 +301,7 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
     }
     if (match)
     {
-      if (point = Qundef)
+      if (point == Qundef)
       {
         create_point(&point, sctx, type, length, yajl_get_bytes_consumed(sctx->handle));
       }
@@ -383,7 +383,7 @@ int scan_on_key(void *ctx, const unsigned char *key, size_t len)
     return true;
   // Can't be called without scan_on_start_object being called before
   // So current_path_len at least 1 and key.type is set to PATH_KEY;
-  sctx->current_path[sctx->current_path_len - 1].value.key.val = key;
+  sctx->current_path[sctx->current_path_len - 1].value.key.val = (char *) key;
   sctx->current_path[sctx->current_path_len - 1].value.key.len = len;
   return true;
 }
@@ -468,15 +468,15 @@ VALUE scan(VALUE self, VALUE json_str, VALUE path_ary, VALUE with_path)
   // TODO: make it configurable
   // yajl_config(handle, yajl_allow_comments, true);
   // yajl_config(handle, yajl_allow_trailing_garbage, true);
-  stat = yajl_parse(handle, json_text, json_text_len);
+  stat = yajl_parse(handle, (unsigned char *) json_text, json_text_len);
   if (stat == yajl_status_ok)
     stat = yajl_complete_parse(handle);
 
   if (stat != yajl_status_ok)
   {
-    unsigned char *str = yajl_get_error(handle, opt_verbose_error, json_text, json_text_len);
+    char *str = (char *) yajl_get_error(handle, opt_verbose_error, (unsigned char *) json_text, json_text_len);
     err = rb_str_new_cstr(str);
-    yajl_free_error(handle, str);
+    yajl_free_error(handle, (unsigned char *) str);
   }
   // callback_err = ctx->rb_err;
   result = ctx->points_list;
