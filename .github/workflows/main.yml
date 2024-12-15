@@ -21,6 +21,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Use proper Gemfile.lock
+      if: ${{ matrix.ruby == '2.3.8' }}
+      run: mv Gemfile_old_ruby.lock Gemfile.lock
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
