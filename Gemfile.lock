@@ -8,9 +8,6 @@ GEM
   specs:
     ast (2.4.2)
     diff-lcs (1.5.1)
-    hoe (4.2.2)
-      rake (>= 0.8, < 15.0)
-    hoe-debugging (2.0.0)
     json (2.9.0)
     language_server-protocol (3.17.0.3)
     nokogiri (1.15.7-x86_64-linux)
@@ -61,8 +58,6 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  hoe (~> 4.2)
-  hoe-debugging (~> 2.0)
   json_scanner!
   rake (~> 13.0)
   rake-compiler (~> 1.2)
