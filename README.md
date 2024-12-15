@@ -32,7 +32,12 @@ emoji_json = '{"grin": "😁", "heart": "😍", "rofl": "🤣"}'
 begin_pos, end_pos, = JsonScanner.scan(emoji_json, [["heart"]], false).first.first
 emoji_json.byteslice(begin_pos...end_pos)
 # => "\"😍\""
-emoji_json.force_encoding(Encoding::BINARY)[begin_pos...end_pos].force_encoding(Encoding::UTF_8)
+# Note: most likely don't need `quirks_mode` option, unless you are using some old ruby
+# with stdlib version of json gem or its old version. In new versions `quirks_mode` is default
+JSON.parse(emoji_json.byteslice(begin_pos...end_pos), quirks_mode: true)
+# => "😍"
+# You can also do this
+# emoji_json.force_encoding(Encoding::BINARY)[begin_pos...end_pos].force_encoding(Encoding::UTF_8)
 # => "\"😍\""
 ```
 
