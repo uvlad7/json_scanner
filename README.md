@@ -17,13 +17,15 @@ If bundler is not being used to manage dependencies, install the gem by executin
 ## Usage
 
 ```ruby
-require 'json'
-require 'json_scanner'
+require "json"
+require "json_scanner"
 
-large_json = "[#{'4,' * 100_000 }42#{',2' * 100_000 }]"
+large_json = "[#{"4," * 100_000}42#{",2" * 100_000}]"
 where_is_42 = JsonScanner.scan(large_json, [[100_000]], false).first
 # => [[200001, 200003, :number]]
-where_is_42.map { |begin_pos, end_pos, _type| JSON.parse(large_json[begin_pos...end_pos], quirks_mode: true) }
+where_is_42.map do |begin_pos, end_pos, _type|
+  JSON.parse(large_json[begin_pos...end_pos], quirks_mode: true)
+end
 # => [42]
 ```
 
