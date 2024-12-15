@@ -4,6 +4,7 @@ AllCops:
   SuggestExtensions: false
   Exclude:
     - 'temp/**/*'
+    - vendor/bundle/**/*
 
 Style/FrozenStringLiteralComment:
   Enabled: true
