@@ -308,3 +308,7 @@ JsonSlicer.slice(
 ).each do |indices|
   p indices
 end
+
+puts '---'
+p JsonSlicer.slice('[[1],[2]]'.force_encoding(Encoding::ASCII_8BIT), [[]])
+p JsonSlicer.slice('[[1],[2]]'.force_encoding(Encoding::ASCII_8BIT), [[0]])

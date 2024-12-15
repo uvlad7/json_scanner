@@ -186,6 +186,8 @@ scan_ctx *scan_ctx_init(VALUE path_ary, VALUE with_path)
   return ctx;
 }
 
+// Fixme munmap_chunk(): invalid pointer
+// JsonScanner.scan '[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]', [[0,0,0,0,0,0,0]], true + Ctrl+D
 void scan_ctx_free(scan_ctx *ctx)
 {
   if (!ctx)
@@ -204,16 +206,10 @@ void scan_ctx_free(scan_ctx *ctx)
 void inline increment_arr_index(scan_ctx *sctx)
 {
   // TODO?
-  if (sctx->current_path[sctx->current_path_len].type == PATH_INDEX)
+  if (sctx->current_path_len && sctx->current_path[sctx->current_path_len - 1].type == PATH_INDEX)
   {
-    sctx->current_path[sctx->current_path_len].value.index++;
+    sctx->current_path[sctx->current_path_len - 1].value.index++;
   }
-}
-
-// noexcept
-void inline save_start_pos(scan_ctx *sctx)
-{
-  sctx->starts[sctx->current_path_len] = yajl_get_bytes_consumed(sctx->handle) - 1;
 }
 
 typedef enum
@@ -250,7 +246,7 @@ void create_point(VALUE *point, scan_ctx *sctx, value_type type, size_t length, 
     break;
   case string_value:
     values[0] = RB_ULONG2NUM(curr_pos - length);
-    values[2] = null_sym;
+    values[2] = string_sym;
     break;
   case object_value:
     values[0] = RB_ULONG2NUM(sctx->starts[sctx->current_path_len]);
@@ -318,7 +314,7 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
 int scan_on_null(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_path_len >= sctx->max_path_len)
+  if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
   save_point(sctx, null_value, 4);
@@ -329,7 +325,7 @@ int scan_on_null(void *ctx)
 int scan_on_boolean(void *ctx, int bool_val)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_path_len >= sctx->max_path_len)
+  if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
   save_point(sctx, boolean_value, bool_val ? 4 : 5);
@@ -340,7 +336,7 @@ int scan_on_boolean(void *ctx, int bool_val)
 int scan_on_number(void *ctx, const char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_path_len >= sctx->max_path_len)
+  if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
   save_point(sctx, number_value, len);
@@ -351,7 +347,7 @@ int scan_on_number(void *ctx, const char *val, size_t len)
 int scan_on_string(void *ctx, const unsigned char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_path_len >= sctx->max_path_len)
+  if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
   save_point(sctx, string_value, len + 2);
@@ -362,14 +358,17 @@ int scan_on_string(void *ctx, const unsigned char *val, size_t len)
 int scan_on_start_object(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_path_len >= sctx->max_path_len)
+  if (sctx->current_path_len > sctx->max_path_len)
   {
     sctx->current_path_len++;
     return true;
   }
   increment_arr_index(sctx);
-  save_start_pos(sctx);
-  sctx->current_path[sctx->current_path_len].type = PATH_KEY;
+  if (sctx->current_path_len < sctx->max_path_len)
+  {
+    sctx->starts[sctx->current_path_len] = yajl_get_bytes_consumed(sctx->handle) - 1;
+    sctx->current_path[sctx->current_path_len].type = PATH_KEY;
+  }
   sctx->current_path_len++;
   return true;
 }
@@ -378,11 +377,11 @@ int scan_on_start_object(void *ctx)
 int scan_on_key(void *ctx, const unsigned char *key, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_path_len >= sctx->max_path_len)
+  if (sctx->current_path_len > sctx->max_path_len)
     return true;
-  // sctx->current_path[sctx->current_path_len].type = PATH_KEY;
-  sctx->current_path[sctx->current_path_len].value.key.val = key;
-  sctx->current_path[sctx->current_path_len].value.key.len = len;
+  // sctx->current_path[sctx->current_path_len - 1].type = PATH_KEY;
+  sctx->current_path[sctx->current_path_len - 1].value.key.val = key;
+  sctx->current_path[sctx->current_path_len - 1].value.key.len = len;
   return true;
 }
 
@@ -401,15 +400,18 @@ int scan_on_end_object(void *ctx)
 int scan_on_start_array(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  if (sctx->current_path_len >= sctx->max_path_len)
+  if (sctx->current_path_len > sctx->max_path_len)
   {
     sctx->current_path_len++;
     return true;
   }
   increment_arr_index(sctx);
-  save_start_pos(sctx);
-  sctx->current_path[sctx->current_path_len].type = PATH_INDEX;
-  sctx->current_path[sctx->current_path_len].value.index = -1;
+  if (sctx->current_path_len < sctx->max_path_len)
+  {
+    sctx->starts[sctx->current_path_len] = yajl_get_bytes_consumed(sctx->handle) - 1;
+    sctx->current_path[sctx->current_path_len].type = PATH_INDEX;
+    sctx->current_path[sctx->current_path_len].value.index = -1;
+  }
   sctx->current_path_len++;
   return true;
 }
@@ -496,10 +498,10 @@ Init_json_scanner(void)
   rb_define_const(rb_mJsonScannerOptions, "ALLOW_MULTIPLE_VALUES", INT2FIX(yajl_allow_multiple_values));
   rb_define_const(rb_mJsonScannerOptions, "ALLOW_PARTIAL_VALUES", INT2FIX(yajl_allow_partial_values));
   rb_define_module_function(rb_mJsonScanner, "scan", scan, 3);
-  null_sym = rb_intern("null");
-  boolean_sym = rb_intern("boolean");
-  number_sym = rb_intern("number");
-  string_sym = rb_intern("string");
-  object_sym = rb_intern("object");
-  array_sym = rb_intern("array");
+  null_sym = rb_id2sym(rb_intern("null"));
+  boolean_sym = rb_id2sym(rb_intern("boolean"));
+  number_sym = rb_id2sym(rb_intern("number"));
+  string_sym = rb_id2sym(rb_intern("string"));
+  object_sym = rb_id2sym(rb_intern("object"));
+  array_sym = rb_id2sym(rb_intern("array"));
 }
