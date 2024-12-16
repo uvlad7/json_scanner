@@ -40,12 +40,12 @@ RSpec.describe JsonScanner do
 
   it "allows to select ranges" do
     expect(
-      described_class.scan("[[1,2],[3,4]]", [[described_class::ALL, described_class::ALL]], false)
+      described_class.scan("[[1,2],[3,4]]", [[described_class::ANY_INDEX, described_class::ANY_INDEX]], false)
     ).to eq(
       [[[2, 3, :number], [4, 5, :number], [8, 9, :number], [10, 11, :number]]]
     )
     expect(
-      described_class.scan("[[1,2],[3,4]]", [[described_class::ALL, (0...1)]], false)
+      described_class.scan("[[1,2],[3,4]]", [[described_class::ANY_INDEX, (0...1)]], false)
     ).to eq(
       [[[2, 3, :number], [8, 9, :number]]]
     )

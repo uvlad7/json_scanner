@@ -16,9 +16,9 @@ enum matcher_type
   MATCHER_KEY,
   MATCHER_INDEX,
   // MATCHER_ANY_KEY,
-  // MATCHER_ANY_INDEX,
   MATCHER_INDEX_RANGE,
   // MATCHER_KEYS_LIST,
+  // MATCHER_KEY_REGEX,
 };
 
 enum path_type
@@ -512,7 +512,7 @@ RUBY_FUNC_EXPORTED void
 Init_json_scanner(void)
 {
   rb_mJsonScanner = rb_define_module("JsonScanner");
-  rb_define_const(rb_mJsonScanner, "ALL", rb_range_new(INT2FIX(0), INT2FIX(-1), false));
+  rb_define_const(rb_mJsonScanner, "ANY_INDEX", rb_range_new(INT2FIX(0), INT2FIX(-1), false));
   rb_mJsonScannerOptions = rb_define_module_under(rb_mJsonScanner, "Options");
   rb_eJsonScannerParseError = rb_define_class_under(rb_mJsonScanner, "ParseError", rb_eRuntimeError);
   rb_define_const(rb_mJsonScannerOptions, "ALLOW_COMMENTS", INT2FIX(yajl_allow_comments));
