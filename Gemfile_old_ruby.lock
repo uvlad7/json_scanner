@@ -46,6 +46,7 @@ GEM
     unicode-display_width (1.8.0)
 
 PLATFORMS
+  -darwin-23
   x86_64-linux
 
 DEPENDENCIES
@@ -53,8 +54,8 @@ DEPENDENCIES
   rake (~> 13.0)
   rake-compiler (~> 1.2)
   rspec (~> 3.0)
-  rubocop (~> 0.81)
+  rubocop (~> 0.81.0)
   rubocop-rspec (~> 1.38)
 
 BUNDLED WITH
-   2.3.27
+   2.3.26
