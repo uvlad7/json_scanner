@@ -11,7 +11,7 @@ gem "rake-compiler", "~> 1.2"
 
 gem "rspec", "~> 3.0"
 
-gem "rubocop", RUBY_VERSION >= "2.7" ? "~> 1.69" : "~> 0.81"
+gem "rubocop", RUBY_VERSION >= "2.7" ? "~> 1.69" : "~> 0.81.0"
 
 gem "rubocop-rspec", RUBY_VERSION >= "2.7" ? "~> 3.3" : "~> 1.38", require: false
 
