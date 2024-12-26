@@ -21,6 +21,22 @@ RSpec.describe JsonScanner do
     )
   end
 
+  it "works with max path len correctly" do
+    expect(
+      described_class.scan('{"a": [1]}', [[], ["a"]]),
+    ).to eq(
+      [[[0, 10, :object]], [[6, 9, :array]]],
+    )
+    expect(
+      described_class.scan('{"a": {"b": 1}}', [[], ["a"]]),
+    ).to eq(
+      [[[0, 15, :object]], [[6, 14, :object]]],
+    )
+    expect(described_class.scan('{"a": 1}', [[]])).to eq([[[0, 8, :object]]])
+    expect(described_class.scan("[[1]]", [[]])).to eq([[[0, 5, :array]]])
+    expect(described_class.scan("[[1]]", [[0]])).to eq([[[1, 4, :array]]])
+  end
+
   it "raises on invalid json" do
     expect do
       begin
@@ -144,6 +160,11 @@ RSpec.describe JsonScanner do
       ),
     ).to eq(
       [[[26, 27, :number]]],
+    )
+    expect(
+      described_class.scan('[{"a": /* comment */ 1}]_________', [[]], { allow_comments: true, allow_trailing_garbage: true }),
+    ).to eq(
+      [[[0, 24, :array]]],
     )
   end
 end
