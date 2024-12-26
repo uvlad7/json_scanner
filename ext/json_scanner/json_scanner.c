@@ -196,7 +196,7 @@ scan_ctx *scan_ctx_init(VALUE path_ary, int with_path)
     rb_ary_push(ctx->points_list, rb_ary_new());
   }
 
-  ctx->starts = ruby_xmalloc2(sizeof(size_t), ctx->max_path_len);
+  ctx->starts = ruby_xmalloc2(sizeof(size_t), ctx->max_path_len + 1);
   // ctx->rb_err = Qnil;
   ctx->handle = NULL;
 
@@ -411,11 +411,9 @@ int scan_on_start_object(void *ctx)
     return true;
   }
   increment_arr_index(sctx);
+  sctx->starts[sctx->current_path_len] = yajl_get_bytes_consumed(sctx->handle) - 1;
   if (sctx->current_path_len < sctx->max_path_len)
-  {
-    sctx->starts[sctx->current_path_len] = yajl_get_bytes_consumed(sctx->handle) - 1;
     sctx->current_path[sctx->current_path_len].type = PATH_KEY;
-  }
   sctx->current_path_len++;
   return true;
 }
@@ -438,9 +436,8 @@ int scan_on_end_object(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   sctx->current_path_len--;
-  if (sctx->current_path_len >= sctx->max_path_len)
-    return true;
-  save_point(sctx, object_value, 0);
+  if (sctx->current_path_len <= sctx->max_path_len)
+    save_point(sctx, object_value, 0);
   return true;
 }
 
@@ -454,9 +451,9 @@ int scan_on_start_array(void *ctx)
     return true;
   }
   increment_arr_index(sctx);
+  sctx->starts[sctx->current_path_len] = yajl_get_bytes_consumed(sctx->handle) - 1;
   if (sctx->current_path_len < sctx->max_path_len)
   {
-    sctx->starts[sctx->current_path_len] = yajl_get_bytes_consumed(sctx->handle) - 1;
     sctx->current_path[sctx->current_path_len].type = PATH_INDEX;
     sctx->current_path[sctx->current_path_len].value.index = -1;
   }
@@ -469,9 +466,8 @@ int scan_on_end_array(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   sctx->current_path_len--;
-  if (sctx->current_path_len >= sctx->max_path_len)
-    return true;
-  save_point(sctx, array_value, 0);
+  if (sctx->current_path_len <= sctx->max_path_len)
+    save_point(sctx, array_value, 0);
   return true;
 }
 
