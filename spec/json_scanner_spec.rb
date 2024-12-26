@@ -150,21 +150,18 @@ RSpec.describe JsonScanner do
   it "allows to configure yajl" do
     expect(
       described_class.scan("[1]____________", [[0]], { allow_trailing_garbage: true }),
-    ).to eq(
-      [[[1, 2, :number]]],
-    )
+    ).to eq([[[1, 2, :number]]])
     expect(
       described_class.scan(
         '["1", {"a": /* comment */ 2}]____________', [[1, "a"]],
         { allow_trailing_garbage: true, allow_comments: true },
       ),
-    ).to eq(
-      [[[26, 27, :number]]],
-    )
+    ).to eq([[[26, 27, :number]]])
     expect(
-      described_class.scan('[{"a": /* comment */ 1}]_________', [[]], { allow_comments: true, allow_trailing_garbage: true }),
-    ).to eq(
-      [[[0, 24, :array]]],
-    )
+      described_class.scan(
+        '[{"a": /* comment */ 1}]_________', [[]],
+        { allow_comments: true, allow_trailing_garbage: true },
+      ),
+    ).to eq([[[0, 24, :array]]])
   end
 end
