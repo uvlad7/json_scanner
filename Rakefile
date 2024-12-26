@@ -19,6 +19,7 @@ GEMSPEC = Gem::Specification.load("json_scanner.gemspec")
 
 Rake::ExtensionTask.new("json_scanner", GEMSPEC) do |ext|
   ext.lib_dir = "lib/json_scanner"
+  # https://karottenreibe.github.io/2009/10/30/ruby-c-extension-7/
 end
 
 task default: %i[clobber compile spec rubocop]
