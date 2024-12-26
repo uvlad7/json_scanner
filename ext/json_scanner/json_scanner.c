@@ -507,7 +507,11 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   VALUE err = Qnil, result;
   // Turned out callbacks can't raise exceptions
   // VALUE callback_err;
+#if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)
   rb_scan_args_kw(RB_SCAN_ARGS_LAST_HASH_KEYWORDS, argc, argv, "2:", &json_str, &path_ary, &kwargs);
+#else
+  rb_scan_args(argc, argv, "2:", &json_str, &path_ary, &kwargs);
+#endif
   if (kwargs != Qnil)
   {
     rb_get_kwargs(kwargs, scan_kwargs_table, 0, 7, kwargs_values);
