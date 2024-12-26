@@ -76,6 +76,30 @@ RSpec.describe JsonScanner do
   end
 
   it "allows to return an actual path to the element" do
+    with_path_expected_res = [
+      # result for first mathcer, each element array of two items:
+      # array of path elements and 3-element array start,end,type
+      [[[0], [1, 6, :array]], [[1], [7, 12, :array]]],
+      [
+        [[0, 0], [2, 3, :number]], [[0, 1], [4, 5, :number]],
+        [[1, 0], [8, 9, :number]], [[1, 1], [10, 11, :number]],
+      ],
+    ]
+    params = [
+      "[[1,2],[3,4]]",
+      [
+        [described_class::ANY_INDEX],
+        [described_class::ANY_INDEX, described_class::ANY_INDEX],
+      ],
+    ]
+    expect(described_class.scan(*params, with_path: true)).to eq(with_path_expected_res)
+    expect(described_class.scan(*params, true)).to eq(with_path_expected_res)
+    expect(
+      described_class.scan(*params, false, with_path: true),
+    ).to eq(with_path_expected_res)
+  end
+
+  it "ignores reqular flag if kwarg is given" do
     expect(
       described_class.scan(
         "[[1,2],[3,4]]",
@@ -83,16 +107,15 @@ RSpec.describe JsonScanner do
           [described_class::ANY_INDEX],
           [described_class::ANY_INDEX, described_class::ANY_INDEX],
         ],
-        with_path: true,
+        true, with_path: false,
       ),
     ).to eq(
       [
-        # result for first mathcer, each element array of two items:
-        # array of path elements and 3-element array start,end,type
-        [[[0], [1, 6, :array]], [[1], [7, 12, :array]]],
+        # result for first mathcer, each element 3-element array start,end,type
+        [[1, 6, :array], [7, 12, :array]],
         [
-          [[0, 0], [2, 3, :number]], [[0, 1], [4, 5, :number]],
-          [[1, 0], [8, 9, :number]], [[1, 1], [10, 11, :number]],
+          [2, 3, :number], [4, 5, :number],
+          [8, 9, :number], [10, 11, :number],
         ],
       ],
     )

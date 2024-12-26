@@ -495,7 +495,7 @@ static yajl_callbacks scan_callbacks = {
 // allow_comments, dont_validate_strings, allow_trailing_garbage, allow_multiple_values, allow_partial_values
 VALUE scan(int argc, VALUE *argv, VALUE self)
 {
-  VALUE json_str, path_ary, kwargs;
+  VALUE json_str, path_ary, with_path_flag, kwargs;
   VALUE kwargs_values[7];
 
   int with_path = false, verbose_error = false;
@@ -508,10 +508,12 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   // Turned out callbacks can't raise exceptions
   // VALUE callback_err;
 #if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)
-  rb_scan_args_kw(RB_SCAN_ARGS_LAST_HASH_KEYWORDS, argc, argv, "2:", &json_str, &path_ary, &kwargs);
+  rb_scan_args_kw(RB_SCAN_ARGS_LAST_HASH_KEYWORDS, argc, argv, "21:", &json_str, &path_ary, &with_path_flag, &kwargs);
 #else
-  rb_scan_args(argc, argv, "2:", &json_str, &path_ary, &kwargs);
+  rb_scan_args(argc, argv, "21:", &json_str, &path_ary, &with_path_flag, &kwargs);
 #endif
+  // rb_io_write(rb_stderr, rb_sprintf("with_path_flag: %" PRIsVALUE " \n", with_path_flag));
+  with_path = RTEST(with_path_flag);
   if (kwargs != Qnil)
   {
     rb_get_kwargs(kwargs, scan_kwargs_table, 0, 7, kwargs_values);
