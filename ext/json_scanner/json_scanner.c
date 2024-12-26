@@ -1,9 +1,8 @@
 #include "json_scanner.h"
 
 VALUE rb_mJsonScanner;
-VALUE rb_mJsonScannerOptions;
 VALUE rb_eJsonScannerParseError;
-ID scan_kwargs_table[2];
+ID scan_kwargs_table[7];
 
 VALUE null_sym;
 VALUE boolean_sym;
@@ -294,6 +293,8 @@ VALUE create_path(scan_ctx *sctx)
     case PATH_INDEX:
       entry = RB_ULONG2NUM(sctx->current_path[i].value.index);
       break;
+    default:
+      entry = Qnil;
     }
     rb_ary_push(path, entry);
   }
@@ -344,7 +345,8 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
       if (point == Qundef)
       {
         point = create_point(sctx, type, length, yajl_get_bytes_consumed(sctx->handle));
-        if (sctx->with_path) {
+        if (sctx->with_path)
+        {
           point = rb_ary_new_from_args(2, create_path(sctx), point);
         }
       }
@@ -486,11 +488,16 @@ static yajl_callbacks scan_callbacks = {
     scan_on_start_array,
     scan_on_end_array};
 
-// def scan(json_str, path_arr, with_path: false, verbose_error: false)
-VALUE scan(int argc, VALUE * argv, VALUE self)
+// def scan(json_str, path_arr, opts)
+// opts
+// with_path: false, verbose_error: false,
+// the following opts converted to bool and passed to yajl_config if provided, ignored if not provided
+// allow_comments, dont_validate_strings, allow_trailing_garbage, allow_multiple_values, allow_partial_values
+VALUE scan(int argc, VALUE *argv, VALUE self)
 {
   VALUE json_str, path_ary, kwargs;
-  VALUE kwargs_values[2];
+  VALUE kwargs_values[7];
+
   int with_path = false, verbose_error = false;
   char *json_text;
   size_t json_text_len;
@@ -500,11 +507,14 @@ VALUE scan(int argc, VALUE * argv, VALUE self)
   VALUE err = Qnil, result;
   // Turned out callbacks can't raise exceptions
   // VALUE callback_err;
-  rb_scan_args(argc, argv, "2:", &json_str, &path_ary, &kwargs);
-  if (kwargs != Qnil) {
-    rb_get_kwargs(kwargs, scan_kwargs_table, 0, 2, kwargs_values);
-    if (kwargs_values[0] != Qundef) with_path = RTEST(kwargs_values[0]);
-    if (kwargs_values[1] != Qundef) verbose_error = RTEST(kwargs_values[1]);
+  rb_scan_args_kw(RB_SCAN_ARGS_LAST_HASH_KEYWORDS, argc, argv, "2:", &json_str, &path_ary, &kwargs);
+  if (kwargs != Qnil)
+  {
+    rb_get_kwargs(kwargs, scan_kwargs_table, 0, 7, kwargs_values);
+    if (kwargs_values[0] != Qundef)
+      with_path = RTEST(kwargs_values[0]);
+    if (kwargs_values[1] != Qundef)
+      verbose_error = RTEST(kwargs_values[1]);
   }
   rb_check_type(json_str, T_STRING);
   json_text = RSTRING_PTR(json_str);
@@ -516,10 +526,20 @@ VALUE scan(int argc, VALUE * argv, VALUE self)
   ctx = scan_ctx_init(path_ary, with_path);
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
+  if (kwargs != Qnil) // it's safe to read kwargs_values only if rb_get_kwargs was called
+  {
+    if (kwargs_values[2] != Qundef)
+      yajl_config(handle, yajl_allow_comments, RTEST(kwargs_values[2]));
+    if (kwargs_values[3] != Qundef)
+      yajl_config(handle, yajl_dont_validate_strings, RTEST(kwargs_values[3]));
+    if (kwargs_values[4] != Qundef)
+      yajl_config(handle, yajl_allow_trailing_garbage, RTEST(kwargs_values[4]));
+    if (kwargs_values[5] != Qundef)
+      yajl_config(handle, yajl_allow_multiple_values, RTEST(kwargs_values[5]));
+    if (kwargs_values[6] != Qundef)
+      yajl_config(handle, yajl_allow_partial_values, RTEST(kwargs_values[6]));
+  }
   ctx->handle = handle;
-  // TODO: make it configurable
-  // yajl_config(handle, yajl_allow_comments, true);
-  // yajl_config(handle, yajl_allow_trailing_garbage, true);
   stat = yajl_parse(handle, (unsigned char *)json_text, json_text_len);
   if (stat == yajl_status_ok)
     stat = yajl_complete_parse(handle);
@@ -547,13 +567,7 @@ Init_json_scanner(void)
 {
   rb_mJsonScanner = rb_define_module("JsonScanner");
   rb_define_const(rb_mJsonScanner, "ANY_INDEX", rb_range_new(INT2FIX(0), INT2FIX(-1), false));
-  rb_mJsonScannerOptions = rb_define_module_under(rb_mJsonScanner, "Options");
   rb_eJsonScannerParseError = rb_define_class_under(rb_mJsonScanner, "ParseError", rb_eRuntimeError);
-  rb_define_const(rb_mJsonScannerOptions, "ALLOW_COMMENTS", INT2FIX(yajl_allow_comments));
-  rb_define_const(rb_mJsonScannerOptions, "DONT_VALIDATE_STRINGS", INT2FIX(yajl_dont_validate_strings));
-  rb_define_const(rb_mJsonScannerOptions, "ALLOW_TRAILING_GARBAGE", INT2FIX(yajl_allow_trailing_garbage));
-  rb_define_const(rb_mJsonScannerOptions, "ALLOW_MULTIPLE_VALUES", INT2FIX(yajl_allow_multiple_values));
-  rb_define_const(rb_mJsonScannerOptions, "ALLOW_PARTIAL_VALUES", INT2FIX(yajl_allow_partial_values));
   rb_define_module_function(rb_mJsonScanner, "scan", scan, -1);
   null_sym = rb_id2sym(rb_intern("null"));
   boolean_sym = rb_id2sym(rb_intern("boolean"));
@@ -563,4 +577,9 @@ Init_json_scanner(void)
   array_sym = rb_id2sym(rb_intern("array"));
   scan_kwargs_table[0] = rb_intern("with_path");
   scan_kwargs_table[1] = rb_intern("verbose_error");
+  scan_kwargs_table[2] = rb_intern("allow_comments");
+  scan_kwargs_table[3] = rb_intern("dont_validate_strings");
+  scan_kwargs_table[4] = rb_intern("allow_trailing_garbage");
+  scan_kwargs_table[5] = rb_intern("allow_multiple_values");
+  scan_kwargs_table[6] = rb_intern("allow_partial_values");
 }

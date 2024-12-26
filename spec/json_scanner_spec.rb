@@ -29,7 +29,7 @@ RSpec.describe JsonScanner do
         # got "munmap_chunk(): invalid pointer" in in console once after
         # JsonScanner.scan '[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]', [[0,0,0,0,0,0,0]], true + Ctrl+D
         # (last arg wasn't handled at the time and was intended for with_path kwarg)
-        # but I don't think it's a problem of tht extension or libyajl, it happened at exit and I free everything before
+        # but I don't think it's a problem of the extension or libyajl, it happened at exit and I free everything before
         # `JsonScanner.scan` returns
         described_class.scan "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]", [[0, 0, 0, 0, 0, 0, 0]]
       ensure
@@ -95,6 +95,24 @@ RSpec.describe JsonScanner do
           [[1, 0], [8, 9, :number]], [[1, 1], [10, 11, :number]],
         ],
       ],
+    )
+  end
+
+  it "allows to pass config as a hash" do
+    expect(
+      described_class.scan("[1]", [[0]], { with_path: true }),
+    ).to eq(
+      [
+        [[[0], [1, 2, :number]]],
+      ],
+    )
+  end
+
+  it "allows to configure yajl" do
+    expect(
+      described_class.scan("[1]____________", [[0]], { allow_trailing_garbage: true }),
+    ).to eq(
+      [[[1, 2, :number]]],
     )
   end
 end
