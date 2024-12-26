@@ -137,5 +137,13 @@ RSpec.describe JsonScanner do
     ).to eq(
       [[[1, 2, :number]]],
     )
+    expect(
+      described_class.scan(
+        '["1", {"a": /* comment */ 2}]____________', [[1, "a"]],
+        { allow_trailing_garbage: true, allow_comments: true }
+      ),
+    ).to eq(
+      [[[26, 27, :number]]],
+    )
   end
 end
