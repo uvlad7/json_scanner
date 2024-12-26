@@ -30,3 +30,12 @@ RSpec/ExampleLength:
 Metrics/BlockLength:
   Exclude:
     - "spec/**/*"
+
+Style/TrailingCommaInArguments:
+  EnforcedStyleForMultiline: consistent_comma
+
+Style/TrailingCommaInArrayLiteral:
+  EnforcedStyleForMultiline: consistent_comma
+
+Style/TrailingCommaInHashLiteral:
+  EnforcedStyleForMultiline: consistent_comma

@@ -12,12 +12,12 @@ RSpec.describe JsonScanner do
     expect(result).to eq([[[1, 4, :string]], [[12, 13, :number]], [[0, 15, :array]]])
     expect(described_class.scan('"2"', [[]])).to eq([[[0, 3, :string]]])
     expect(
-      described_class.scan("[0,1,2,3,4,5,6,7]", [[(0..2)], [(4...6)]])
+      described_class.scan("[0,1,2,3,4,5,6,7]", [[(0..2)], [(4...6)]]),
     ).to eq(
-      [[[1, 2, :number], [3, 4, :number], [5, 6, :number]], [[9, 10, :number], [11, 12, :number]]]
+      [[[1, 2, :number], [3, 4, :number], [5, 6, :number]], [[9, 10, :number], [11, 12, :number]]],
     )
     expect(described_class.scan('{"a": 1}', [["a"], []])).to eq(
-      [[[6, 7, :number]], [[0, 8, :object]]]
+      [[[6, 7, :number]], [[0, 8, :object]]],
     )
   end
 
@@ -40,14 +40,14 @@ RSpec.describe JsonScanner do
 
   it "allows to select ranges" do
     expect(
-      described_class.scan("[[1,2],[3,4]]", [[described_class::ANY_INDEX, described_class::ANY_INDEX]])
+      described_class.scan("[[1,2],[3,4]]", [[described_class::ANY_INDEX, described_class::ANY_INDEX]]),
     ).to eq(
-      [[[2, 3, :number], [4, 5, :number], [8, 9, :number], [10, 11, :number]]]
+      [[[2, 3, :number], [4, 5, :number], [8, 9, :number], [10, 11, :number]]],
     )
     expect(
-      described_class.scan("[[1,2],[3,4]]", [[described_class::ANY_INDEX, (0...1)]])
+      described_class.scan("[[1,2],[3,4]]", [[described_class::ANY_INDEX, (0...1)]]),
     ).to eq(
-      [[[2, 3, :number], [8, 9, :number]]]
+      [[[2, 3, :number], [8, 9, :number]]],
     )
   end
 
@@ -73,5 +73,28 @@ RSpec.describe JsonScanner do
     expect do
       described_class.scan "{1}", [], verbose_error: true
     end.to raise_error described_class::ParseError, /invalid object key(?=.*\(right here\))/m
+  end
+
+  it "allows to return an actual path to the element" do
+    expect(
+      described_class.scan(
+        "[[1,2],[3,4]]",
+        [
+          [described_class::ANY_INDEX],
+          [described_class::ANY_INDEX, described_class::ANY_INDEX],
+        ],
+        with_path: true,
+      ),
+    ).to eq(
+      [
+        # result for first mathcer, each element array of two items:
+        # array of path elements and 3-element array start,end,type
+        [[[0], [1, 6, :array]], [[1], [7, 12, :array]]],
+        [
+          [[0, 0], [2, 3, :number]], [[0, 1], [4, 5, :number]],
+          [[1, 0], [8, 9, :number]], [[1, 1], [10, 11, :number]],
+        ],
+      ],
+    )
   end
 end

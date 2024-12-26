@@ -240,10 +240,10 @@ typedef enum
 } value_type;
 
 // noexcept
-void create_point(VALUE *point, scan_ctx *sctx, value_type type, size_t length, size_t curr_pos)
+VALUE create_point(scan_ctx *sctx, value_type type, size_t length, size_t curr_pos)
 {
   VALUE values[3];
-  *point = rb_ary_new_capa(3);
+  VALUE point = rb_ary_new_capa(3);
   // noexcept
   values[1] = RB_ULONG2NUM(curr_pos);
   switch (type)
@@ -275,7 +275,29 @@ void create_point(VALUE *point, scan_ctx *sctx, value_type type, size_t length, 
     break;
   }
   // rb_ary_cat raise only in case of a frozen array or if len is too long
-  rb_ary_cat(*point, values, 3);
+  rb_ary_cat(point, values, 3);
+  return point;
+}
+
+// noexcept
+VALUE create_path(scan_ctx *sctx)
+{
+  VALUE path = rb_ary_new_capa(sctx->current_path_len);
+  for (int i = 0; i < sctx->current_path_len; i++)
+  {
+    VALUE entry;
+    switch (sctx->current_path[i].type)
+    {
+    case PATH_KEY:
+      entry = rb_str_new(sctx->current_path[i].value.key.val, sctx->current_path[i].value.key.len);
+      break;
+    case PATH_INDEX:
+      entry = RB_ULONG2NUM(sctx->current_path[i].value.index);
+      break;
+    }
+    rb_ary_push(path, entry);
+  }
+  return path;
 }
 
 // noexcept
@@ -283,6 +305,7 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
 {
   // TODO: Abort parsing if all paths are matched and no more mathces are possible: only trivial key/index matchers at the current level
   // TODO: Don't re-compare already matched prefixes; hard to invalidate, though
+  // TODO: Might fail in case of no memory
   VALUE point = Qundef;
   int match;
   for (int i = 0; i < sctx->paths_len; i++)
@@ -320,7 +343,10 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
     {
       if (point == Qundef)
       {
-        create_point(&point, sctx, type, length, yajl_get_bytes_consumed(sctx->handle));
+        point = create_point(sctx, type, length, yajl_get_bytes_consumed(sctx->handle));
+        if (sctx->with_path) {
+          point = rb_ary_new_from_args(2, create_path(sctx), point);
+        }
       }
       // rb_ary_push raises only in case of a frozen array, which is not the case
       // rb_ary_entry is safe
