@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "spec_helper"
+require "json"
 
 RSpec.describe JsonScanner do
   it "has a version number" do
@@ -163,5 +164,33 @@ RSpec.describe JsonScanner do
         { allow_comments: true, allow_trailing_garbage: true },
       ),
     ).to eq([[[0, 24, :array]]])
+  end
+
+  it "works with utf-8" do
+    json = '{"ルビー": ["Руби"]}'.encode(Encoding::UTF_8)
+    expect(described_class.scan(json, [[]])).to eq([[[0, json.bytesize, :object]]])
+    res = described_class.scan(json, [["ルビー", 0]])
+    expect(res.size).to eq(1)
+    expect(res.first.size).to eq(1)
+    elem = res.first.first
+    expect(elem.size).to eq(3)
+    expect(elem.last).to eq(:string)
+    expect(JSON.parse(json.byteslice(elem[0]...elem[1]), quirks_mode: true)).to eq("Руби")
+  end
+
+  it "raises exceptions in utf-8" do
+    bad_json = '{"ルビー": ["Руби" 1]}'.encode(Encoding::UTF_8)
+    expect do
+      described_class.scan(bad_json, [[]], verbose_error: true)
+      # Checks encoding
+    end.to raise_error(described_class::ParseError, Regexp.new(Regexp.escape(bad_json)))
+  end
+
+  it "works with different encodings" do
+    # TODO: encoding validation
+    json = '{"a": 1}'.encode(Encoding::UTF_32LE)
+    expect do
+      described_class.scan(json, [[]])
+    end.to raise_error(described_class::ParseError)
   end
 end

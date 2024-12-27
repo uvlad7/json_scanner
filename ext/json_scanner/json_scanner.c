@@ -549,7 +549,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   if (stat != yajl_status_ok)
   {
     char *str = (char *)yajl_get_error(handle, verbose_error, (unsigned char *)json_text, json_text_len);
-    err = rb_str_new_cstr(str);
+    err = rb_utf8_str_new_cstr(str);
     yajl_free_error(handle, (unsigned char *)str);
   }
   // callback_err = ctx->rb_err;
