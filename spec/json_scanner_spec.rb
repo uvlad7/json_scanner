@@ -31,6 +31,25 @@ RSpec.describe JsonScanner do
     ).to eq([[[%i[a b], [12, 13, :number]]]])
   end
 
+  it "supports any key selector" do
+    expect(
+      described_class.scan(
+        '[{"a":1,"b":2},{"c":3,"d":4},[5]]',
+        [[described_class::ANY_INDEX, described_class::ANY_KEY]],
+      ),
+    ).to eq(
+      [[[6, 7, :number], [12, 13, :number], [20, 21, :number], [26, 27, :number]]],
+    )
+    expect(
+      described_class.scan(
+        '{"a":[1,2],"b":{"c":3}}',
+        [[described_class::ANY_KEY, described_class::ANY_INDEX]],
+      ),
+    ).to eq(
+      [[[6, 7, :number], [8, 9, :number]]],
+    )
+  end
+
   it "works with max path len correctly" do
     expect(
       described_class.scan('{"a": [1]}', [[], ["a"]]),

@@ -12,11 +12,13 @@ VALUE string_sym;
 VALUE object_sym;
 VALUE array_sym;
 
+VALUE any_key_sym;
+
 enum matcher_type
 {
   MATCHER_KEY,
   MATCHER_INDEX,
-  // MATCHER_ANY_KEY,
+  MATCHER_ANY_KEY,
   MATCHER_INDEX_RANGE,
   // MATCHER_KEYS_LIST,
   // MATCHER_KEY_REGEX,
@@ -126,13 +128,16 @@ scan_ctx *scan_ctx_init(VALUE path_ary, int with_path, int symbolize_path_keys)
         int open_ended;
         if (rb_range_values(entry, &range_beg, &range_end, &open_ended) != Qtrue)
           rb_raise(rb_eArgError, "path elements must be strings, integers, or ranges");
-        if (RB_NUM2LONG(range_beg) < 0L)
-          rb_raise(rb_eArgError, "range start must be positive");
-        end_val = RB_NUM2LONG(range_end);
-        if (end_val < -1L)
-          rb_raise(rb_eArgError, "range end must be positive or -1");
-        if (end_val == -1L && open_ended)
-          rb_raise(rb_eArgError, "range with -1 end must be closed");
+        if (range_beg != any_key_sym || range_end != any_key_sym)
+        {
+          if (RB_NUM2LONG(range_beg) < 0L)
+            rb_raise(rb_eArgError, "range start must be positive");
+          end_val = RB_NUM2LONG(range_end);
+          if (end_val < -1L)
+            rb_raise(rb_eArgError, "range end must be positive or -1");
+          if (end_val == -1L && open_ended)
+            rb_raise(rb_eArgError, "range with -1 end must be closed");
+        }
       }
       }
     }
@@ -183,16 +188,23 @@ scan_ctx *scan_ctx_init(VALUE path_ary, int with_path, int symbolize_path_keys)
       {
         VALUE range_beg, range_end;
         int open_ended;
-        paths[i].elems[j].type = MATCHER_INDEX_RANGE;
         rb_range_values(entry, &range_beg, &range_end, &open_ended);
-        paths[i].elems[j].value.range.start = RB_NUM2LONG(range_beg);
-        paths[i].elems[j].value.range.end = RB_NUM2LONG(range_end);
-        // (value..-1) works as expected, (value...-1) is forbidden above
-        if (paths[i].elems[j].value.range.end == -1L)
-          paths[i].elems[j].value.range.end = LONG_MAX;
-        // -1 here is fine, so, (0...0) works just as expected - doesn't match anything
-        if (open_ended)
-          paths[i].elems[j].value.range.end--;
+        if (range_beg == any_key_sym && range_end == any_key_sym)
+        {
+          paths[i].elems[j].type = MATCHER_ANY_KEY;
+        }
+        else
+        {
+          paths[i].elems[j].type = MATCHER_INDEX_RANGE;
+          paths[i].elems[j].value.range.start = RB_NUM2LONG(range_beg);
+          paths[i].elems[j].value.range.end = RB_NUM2LONG(range_end);
+          // (value..-1) works as expected, (value...-1) is forbidden above
+          if (paths[i].elems[j].value.range.end == -1L)
+            paths[i].elems[j].value.range.end = LONG_MAX;
+          // -1 here is fine, so, (0...0) works just as expected - doesn't match anything
+          if (open_ended)
+            paths[i].elems[j].value.range.end--;
+        }
       }
       }
     }
@@ -337,6 +349,10 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
     {
       switch (sctx->paths[i].elems[j].type)
       {
+      case MATCHER_ANY_KEY:
+        if (sctx->current_path[j].type != PATH_KEY)
+          match = false;
+        break;
       case MATCHER_KEY:
         if (sctx->current_path[j].type != PATH_KEY ||
             sctx->current_path[j].value.key.len != sctx->paths[i].elems[j].value.key.len ||
@@ -589,6 +605,8 @@ Init_json_scanner(void)
 {
   rb_mJsonScanner = rb_define_module("JsonScanner");
   rb_define_const(rb_mJsonScanner, "ANY_INDEX", rb_range_new(INT2FIX(0), INT2FIX(-1), false));
+  any_key_sym = rb_id2sym(rb_intern("*"));
+  rb_define_const(rb_mJsonScanner, "ANY_KEY", rb_range_new(any_key_sym, any_key_sym, false));
   rb_eJsonScannerParseError = rb_define_class_under(rb_mJsonScanner, "ParseError", rb_eRuntimeError);
   rb_define_module_function(rb_mJsonScanner, "scan", scan, -1);
   null_sym = rb_id2sym(rb_intern("null"));
