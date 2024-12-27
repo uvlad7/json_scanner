@@ -2,7 +2,8 @@
 
 VALUE rb_mJsonScanner;
 VALUE rb_eJsonScannerParseError;
-ID scan_kwargs_table[7];
+#define SCAN_KWARGS_SIZE 8
+ID scan_kwargs_table[SCAN_KWARGS_SIZE];
 
 VALUE null_sym;
 VALUE boolean_sym;
@@ -70,6 +71,7 @@ typedef struct
 typedef struct
 {
   int with_path;
+  int symbolize_path_keys;
   paths_t *paths;
   int paths_len;
   path_elem_t *current_path;
@@ -84,7 +86,7 @@ typedef struct
 } scan_ctx;
 
 // FIXME: This will cause memory leak if ruby_xmalloc raises
-scan_ctx *scan_ctx_init(VALUE path_ary, int with_path)
+scan_ctx *scan_ctx_init(VALUE path_ary, int with_path, int symbolize_path_keys)
 {
   int path_ary_len;
   scan_ctx *ctx;
@@ -103,18 +105,21 @@ scan_ctx *scan_ctx_init(VALUE path_ary, int with_path)
     for (int j = 0; j < path_len; j++)
     {
       VALUE entry = rb_ary_entry(path, j);
-      int type = TYPE(entry);
-      if (type == T_STRING)
+      switch (TYPE(entry))
       {
+      case T_SYMBOL:
+        entry = rb_sym2str(entry);
+        /* fall through */
+      case T_STRING:
 #if LONG_MAX > SIZE_MAX
         RSTRING_LENINT(entry);
 #endif
-      }
-      else if (type == T_FIXNUM || type == T_BIGNUM)
-      {
+        break;
+      case T_FIXNUM:
+      case T_BIGNUM:
         RB_NUM2LONG(entry);
-      }
-      else
+        break;
+      default:
       {
         VALUE range_beg, range_end;
         long end_val;
@@ -129,12 +134,14 @@ scan_ctx *scan_ctx_init(VALUE path_ary, int with_path)
         if (end_val == -1L && open_ended)
           rb_raise(rb_eArgError, "range with -1 end must be closed");
       }
+      }
     }
   }
 
   ctx = ruby_xmalloc(sizeof(scan_ctx));
 
   ctx->with_path = with_path;
+  ctx->symbolize_path_keys = symbolize_path_keys;
   ctx->max_path_len = 0;
 
   paths = ruby_xmalloc(sizeof(paths_t) * path_ary_len);
@@ -149,8 +156,12 @@ scan_ctx *scan_ctx_init(VALUE path_ary, int with_path)
     for (int j = 0; j < path_len; j++)
     {
       VALUE entry = rb_ary_entry(path, j);
-      int type = TYPE(entry);
-      if (type == T_STRING)
+      switch (TYPE(entry))
+      {
+      case T_SYMBOL:
+        entry = rb_sym2str(entry);
+        /* fall through */
+      case T_STRING:
       {
         paths[i].elems[j].type = MATCHER_KEY;
         paths[i].elems[j].value.key.val = RSTRING_PTR(entry);
@@ -160,12 +171,15 @@ scan_ctx *scan_ctx_init(VALUE path_ary, int with_path)
         paths[i].elems[j].value.key.len = RSTRING_LEN(entry);
 #endif
       }
-      else if (type == T_FIXNUM || type == T_BIGNUM)
+      break;
+      case T_FIXNUM:
+      case T_BIGNUM:
       {
         paths[i].elems[j].type = MATCHER_INDEX;
         paths[i].elems[j].value.index = FIX2LONG(entry);
       }
-      else
+      break;
+      default:
       {
         VALUE range_beg, range_end;
         int open_ended;
@@ -179,6 +193,7 @@ scan_ctx *scan_ctx_init(VALUE path_ary, int with_path)
         // -1 here is fine, so, (0...0) works just as expected - doesn't match anything
         if (open_ended)
           paths[i].elems[j].value.range.end--;
+      }
       }
     }
     paths[i].len = path_len;
@@ -288,7 +303,10 @@ VALUE create_path(scan_ctx *sctx)
     switch (sctx->current_path[i].type)
     {
     case PATH_KEY:
-      entry = rb_str_new(sctx->current_path[i].value.key.val, sctx->current_path[i].value.key.len);
+      if (sctx->symbolize_path_keys)
+        entry = rb_id2sym(rb_intern2(sctx->current_path[i].value.key.val, sctx->current_path[i].value.key.len));
+      else
+        entry = rb_str_new(sctx->current_path[i].value.key.val, sctx->current_path[i].value.key.len);
       break;
     case PATH_INDEX:
       entry = RB_ULONG2NUM(sctx->current_path[i].value.index);
@@ -492,9 +510,9 @@ static yajl_callbacks scan_callbacks = {
 VALUE scan(int argc, VALUE *argv, VALUE self)
 {
   VALUE json_str, path_ary, with_path_flag, kwargs;
-  VALUE kwargs_values[7];
+  VALUE kwargs_values[SCAN_KWARGS_SIZE];
 
-  int with_path = false, verbose_error = false;
+  int with_path = false, verbose_error = false, symbolize_path_keys = false;
   char *json_text;
   size_t json_text_len;
   yajl_handle handle;
@@ -512,11 +530,13 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   with_path = RTEST(with_path_flag);
   if (kwargs != Qnil)
   {
-    rb_get_kwargs(kwargs, scan_kwargs_table, 0, 7, kwargs_values);
+    rb_get_kwargs(kwargs, scan_kwargs_table, 0, SCAN_KWARGS_SIZE, kwargs_values);
     if (kwargs_values[0] != Qundef)
       with_path = RTEST(kwargs_values[0]);
     if (kwargs_values[1] != Qundef)
       verbose_error = RTEST(kwargs_values[1]);
+    if (kwargs_values[7] != Qundef)
+      symbolize_path_keys = RTEST(kwargs_values[7]);
   }
   rb_check_type(json_str, T_STRING);
   json_text = RSTRING_PTR(json_str);
@@ -525,7 +545,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
 #else
   json_text_len = RSTRING_LEN(json_str);
 #endif
-  ctx = scan_ctx_init(path_ary, with_path);
+  ctx = scan_ctx_init(path_ary, with_path, symbolize_path_keys);
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
   if (kwargs != Qnil) // it's safe to read kwargs_values only if rb_get_kwargs was called
@@ -584,4 +604,5 @@ Init_json_scanner(void)
   scan_kwargs_table[4] = rb_intern("allow_trailing_garbage");
   scan_kwargs_table[5] = rb_intern("allow_multiple_values");
   scan_kwargs_table[6] = rb_intern("allow_partial_values");
+  scan_kwargs_table[7] = rb_intern("symbolize_path_keys");
 }

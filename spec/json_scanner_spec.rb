@@ -22,6 +22,15 @@ RSpec.describe JsonScanner do
     )
   end
 
+  it "supports symbols" do
+    expect(
+      described_class.scan('{"a": {"b": 1}}', [[:a, "b"]], with_path: true),
+    ).to eq([[[%w[a b], [12, 13, :number]]]])
+    expect(
+      described_class.scan('{"a": {"b": 1}}', [[:a, "b"]], with_path: true, symbolize_path_keys: true),
+    ).to eq([[[%i[a b], [12, 13, :number]]]])
+  end
+
   it "works with max path len correctly" do
     expect(
       described_class.scan('{"a": [1]}', [[], ["a"]]),
