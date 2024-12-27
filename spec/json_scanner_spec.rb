@@ -170,11 +170,8 @@ RSpec.describe JsonScanner do
     json = '{"ルビー": ["Руби"]}'.encode(Encoding::UTF_8)
     expect(described_class.scan(json, [[]])).to eq([[[0, json.bytesize, :object]]])
     res = described_class.scan(json, [["ルビー", 0]])
-    expect(res.size).to eq(1)
-    expect(res.first.size).to eq(1)
+    expect(res).to eq([[[15, 25, :string]]])
     elem = res.first.first
-    expect(elem.size).to eq(3)
-    expect(elem.last).to eq(:string)
     expect(JSON.parse(json.byteslice(elem[0]...elem[1]), quirks_mode: true)).to eq("Руби")
   end
 
