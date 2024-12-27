@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    json_scanner (0.1.1)
+    json_scanner (0.2.0)
 
 GEM
   remote: https://rubygems.org/
@@ -10,9 +10,7 @@ GEM
     diff-lcs (1.5.1)
     json (2.9.0)
     language_server-protocol (3.17.0.3)
-    mini_portile2 (2.8.8)
-    nokogiri (1.15.7)
-      mini_portile2 (~> 2.8.2)
+    nokogiri (1.15.7-arm64-darwin)
       racc (~> 1.4)
     nokogiri (1.15.7-x86_64-linux)
       racc (~> 1.4)
