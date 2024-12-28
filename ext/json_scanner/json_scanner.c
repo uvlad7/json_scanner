@@ -1,6 +1,7 @@
 #include "json_scanner.h"
 
 VALUE rb_mJsonScanner;
+VALUE rb_cJsonScannerConfig;
 VALUE rb_eJsonScannerParseError;
 #define BYTES_CONSUMED "bytes_consumed"
 ID rb_iv_bytes_consumed;
@@ -90,17 +91,16 @@ typedef struct
 } scan_ctx;
 
 // FIXME: This will cause memory leak if ruby_xmalloc raises
-scan_ctx *scan_ctx_init(VALUE path_ary)
+void scan_ctx_init(scan_ctx *ctx, volatile VALUE path_ary)
 {
   int path_ary_len;
-  scan_ctx *ctx;
   paths_t *paths;
   // TODO: Allow to_ary and sized enumerables
   rb_check_type(path_ary, T_ARRAY);
   path_ary_len = rb_long2int(rb_array_len(path_ary));
   // Check types early before any allocations, so exception is ok
   // TODO: Fix this, just handle errors
-  // I'm not sure if it's possible that another Ruby thread changes path_ary items between these two loops
+  // It's not possible that another Ruby thread changes path_ary items between these two loops, because C call holds GVL
   for (int i = 0; i < path_ary_len; i++)
   {
     int path_len;
@@ -145,8 +145,6 @@ scan_ctx *scan_ctx_init(VALUE path_ary)
       }
     }
   }
-
-  ctx = ruby_xmalloc(sizeof(scan_ctx));
 
   ctx->max_path_len = 0;
 
@@ -218,12 +216,12 @@ scan_ctx *scan_ctx_init(VALUE path_ary)
   ctx->current_path = ruby_xmalloc2(sizeof(path_elem_t), ctx->max_path_len);
 
   ctx->starts = ruby_xmalloc2(sizeof(size_t), ctx->max_path_len + 1);
-  return ctx;
 }
 
 // resets temporary values in the config
 void scan_ctx_reset(scan_ctx *ctx, volatile VALUE points_list, int with_path, int symbolize_path_keys)
 {
+  // TODO: reset matched_depth if implemented
   ctx->current_path_len = 0;
   // ctx->rb_err = Qnil;
   ctx->handle = NULL;
@@ -243,7 +241,6 @@ void scan_ctx_free(scan_ctx *ctx)
     ruby_xfree(ctx->paths[i].elems);
   }
   ruby_xfree(ctx->paths);
-  ruby_xfree(ctx);
 }
 
 // noexcept
@@ -508,6 +505,63 @@ int scan_on_end_array(void *ctx)
   return true;
 }
 
+void config_free(void *data)
+{
+  scan_ctx_free((scan_ctx *)data);
+  ruby_xfree(data);
+}
+
+size_t config_size(const void *data)
+{
+  // see ObjectSpace.memsize_of
+  scan_ctx *ctx = (scan_ctx *)data;
+  size_t res = sizeof(scan_ctx);
+  // current_path
+  if (ctx->current_path != NULL)
+    res += ctx->max_path_len * sizeof(path_elem_t);
+  // starts
+  if (ctx->starts != NULL)
+    res += ctx->max_path_len * sizeof(size_t);
+  if (ctx->paths != NULL)
+  {
+    res += ctx->paths_len * sizeof(paths_t);
+    for (int i = 0; i < ctx->paths_len; i++)
+    {
+      res += ctx->paths[i].len * sizeof(path_matcher_elem_t);
+    }
+  }
+  return res;
+}
+
+static const rb_data_type_t config_type = {
+    .wrap_struct_name = "json_scanner_config",
+    .function = {
+        .dfree = config_free,
+        .dsize = config_size,
+    },
+    .flags = RUBY_TYPED_FREE_IMMEDIATELY,
+};
+
+VALUE config_alloc(VALUE self)
+{
+  scan_ctx *ctx = ruby_xmalloc(sizeof(scan_ctx));
+  ctx->paths = NULL;
+  ctx->paths_len = 0;
+  ctx->current_path = NULL;
+  ctx->max_path_len = 0;
+  ctx->starts = NULL;
+  scan_ctx_reset(ctx, Qundef, false, false);
+  return TypedData_Wrap_Struct(self, &config_type, ctx);
+}
+
+VALUE config_m_initialize(VALUE self, VALUE path_ary)
+{
+  scan_ctx *ctx;
+  TypedData_Get_Struct(self, scan_ctx, &config_type, ctx);
+  scan_ctx_init(ctx, path_ary);
+  return self;
+}
+
 static yajl_callbacks scan_callbacks = {
     scan_on_null,
     scan_on_boolean,
@@ -537,6 +591,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   yajl_handle handle;
   yajl_status stat;
   scan_ctx *ctx;
+  int free_ctx = true;
   volatile VALUE err_msg = Qnil, err, result;
   // Turned out callbacks can't raise exceptions
   // volatile VALUE callback_err;
@@ -564,7 +619,16 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
 #else
   json_text_len = RSTRING_LEN(json_str);
 #endif
-  ctx = scan_ctx_init(path_ary);
+  if (rb_obj_is_kind_of(path_ary, rb_cJsonScannerConfig))
+  {
+    free_ctx = false;
+    TypedData_Get_Struct(path_ary, scan_ctx, &config_type, ctx);
+  }
+  else
+  {
+    ctx = ruby_xmalloc(sizeof(scan_ctx));
+    scan_ctx_init(ctx, path_ary);
+  }
   // Need to keep a ref to result array on the stack to prevent it from being GC-ed
   result = rb_ary_new_capa(ctx->paths_len);
   for (int i = 0; i < ctx->paths_len; i++)
@@ -599,9 +663,14 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
     yajl_free_error(handle, (unsigned char *)str);
   }
   // callback_err = ctx->rb_err;
-  scan_ctx_free(ctx);
+  if (free_ctx)
+  {
+    scan_ctx_free(ctx);
+    ruby_xfree(ctx);
+  }
   yajl_free(handle);
-  if (err_msg != Qnil) {
+  if (err_msg != Qnil)
+  {
     err = rb_exc_new_str(rb_eJsonScannerParseError, err_msg);
     rb_ivar_set(err, rb_iv_bytes_consumed, RB_ULONG2NUM(yajl_get_bytes_consumed(handle)));
     rb_exc_raise(err);
@@ -615,6 +684,9 @@ RUBY_FUNC_EXPORTED void
 Init_json_scanner(void)
 {
   rb_mJsonScanner = rb_define_module("JsonScanner");
+  rb_cJsonScannerConfig = rb_define_class_under(rb_mJsonScanner, "Config", rb_cObject);
+  rb_define_alloc_func(rb_cJsonScannerConfig, config_alloc);
+  rb_define_method(rb_cJsonScannerConfig, "initialize", config_m_initialize, 1);
   rb_define_const(rb_mJsonScanner, "ANY_INDEX", rb_range_new(INT2FIX(0), INT2FIX(-1), false));
   any_key_sym = rb_id2sym(rb_intern("*"));
   rb_define_const(rb_mJsonScanner, "ANY_KEY", rb_range_new(any_key_sym, any_key_sym, false));
