@@ -266,7 +266,7 @@ typedef enum
 } value_type;
 
 // noexcept
-volatile VALUE create_point(scan_ctx *sctx, value_type type, size_t length, size_t curr_pos)
+VALUE create_point(scan_ctx *sctx, value_type type, size_t length, size_t curr_pos)
 {
   VALUE values[3];
   volatile VALUE point = rb_ary_new_capa(3);
@@ -306,7 +306,7 @@ volatile VALUE create_point(scan_ctx *sctx, value_type type, size_t length, size
 }
 
 // noexcept
-volatile VALUE create_path(scan_ctx *sctx)
+VALUE create_path(scan_ctx *sctx)
 {
   volatile VALUE path = rb_ary_new_capa(sctx->current_path_len);
   for (int i = 0; i < sctx->current_path_len; i++)
@@ -337,7 +337,7 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
   // TODO: Abort parsing if all paths are matched and no more mathces are possible: only trivial key/index matchers at the current level
   // TODO: Don't re-compare already matched prefixes; hard to invalidate, though
   // TODO: Might fail in case of no memory
-  volatile VALUE point = Qundef;
+  volatile VALUE point = Qundef, path;
   int match;
   for (int i = 0; i < sctx->paths_len; i++)
   {
@@ -381,7 +381,8 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
         point = create_point(sctx, type, length, yajl_get_bytes_consumed(sctx->handle));
         if (sctx->with_path)
         {
-          point = rb_ary_new_from_args(2, create_path(sctx), point);
+          path = create_path(sctx);
+          point = rb_ary_new_from_args(2, path, point);
         }
       }
       // rb_ary_push raises only in case of a frozen array, which is not the case
