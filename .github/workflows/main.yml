@@ -20,6 +20,10 @@ jobs:
           - '2.3.8'
 
     steps:
+    - name: Dependencies
+      uses: daaku/gh-action-apt-install@v4
+      with:
+        packages: libyajl2 libyajl-dev valgrind
     - uses: actions/checkout@v4
     - name: Use proper Gemfile.lock
       if: ${{ matrix.ruby == '2.3.8' }}
@@ -29,8 +33,6 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
-    - name: Install libraries
-      run: sudo apt install -y libyajl2 libyajl-dev valgrind
     - name: Run the default task
       run: bundle exec rake
     - name: Run valgrind
