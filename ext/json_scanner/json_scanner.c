@@ -2,6 +2,8 @@
 
 VALUE rb_mJsonScanner;
 VALUE rb_eJsonScannerParseError;
+#define BYTES_CONSUMED "bytes_consumed"
+ID rb_iv_bytes_consumed;
 #define SCAN_KWARGS_SIZE 8
 ID scan_kwargs_table[SCAN_KWARGS_SIZE];
 
@@ -535,7 +537,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   yajl_handle handle;
   yajl_status stat;
   scan_ctx *ctx;
-  volatile VALUE err = Qnil, result;
+  volatile VALUE err_msg = Qnil, err, result;
   // Turned out callbacks can't raise exceptions
   // volatile VALUE callback_err;
 #if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)
@@ -593,17 +595,19 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   if (stat != yajl_status_ok)
   {
     char *str = (char *)yajl_get_error(handle, verbose_error, (unsigned char *)json_text, json_text_len);
-    err = rb_utf8_str_new_cstr(str);
+    err_msg = rb_utf8_str_new_cstr(str);
     yajl_free_error(handle, (unsigned char *)str);
   }
   // callback_err = ctx->rb_err;
   scan_ctx_free(ctx);
   yajl_free(handle);
-  if (err != Qnil)
-    rb_exc_raise(rb_exc_new_str(rb_eJsonScannerParseError, err));
+  if (err_msg != Qnil) {
+    err = rb_exc_new_str(rb_eJsonScannerParseError, err_msg);
+    rb_ivar_set(err, rb_iv_bytes_consumed, RB_ULONG2NUM(yajl_get_bytes_consumed(handle)));
+    rb_exc_raise(err);
+  }
   // if (callback_err != Qnil)
   //   rb_exc_raise(callback_err);
-  // TODO: report yajl_get_bytes_consumed(handle)
   return result;
 }
 
@@ -615,6 +619,8 @@ Init_json_scanner(void)
   any_key_sym = rb_id2sym(rb_intern("*"));
   rb_define_const(rb_mJsonScanner, "ANY_KEY", rb_range_new(any_key_sym, any_key_sym, false));
   rb_eJsonScannerParseError = rb_define_class_under(rb_mJsonScanner, "ParseError", rb_eRuntimeError);
+  rb_define_attr(rb_eJsonScannerParseError, BYTES_CONSUMED, true, false);
+  rb_iv_bytes_consumed = rb_intern("@" BYTES_CONSUMED);
   rb_define_module_function(rb_mJsonScanner, "scan", scan, -1);
   null_sym = rb_id2sym(rb_intern("null"));
   boolean_sym = rb_id2sym(rb_intern("boolean"));

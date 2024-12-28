@@ -120,9 +120,19 @@ RSpec.describe JsonScanner do
     end.to raise_error described_class::ParseError, /invalid object key(?=.*\(right here\))/m
   end
 
+  it "includes bytes consumed in the exception" do
+    expect do
+      described_class.scan("[[1,2],,[3,4]]", [])
+    end.to(
+      raise_error(described_class::ParseError) do |exc|
+        expect(exc.bytes_consumed).to eq(8)
+      end,
+    )
+  end
+
   it "allows to return an actual path to the element" do
     with_path_expected_res = [
-      # result for first mathcer, each element array of two items:
+      # result for first matcher, each element array of two items:
       # array of path elements and 3-element array start,end,type
       [[[0], [1, 6, :array]], [[1], [7, 12, :array]]],
       [
@@ -156,7 +166,7 @@ RSpec.describe JsonScanner do
       ),
     ).to eq(
       [
-        # result for first mathcer, each element 3-element array start,end,type
+        # result for first matcher, each element 3-element array start,end,type
         [[1, 6, :array], [7, 12, :array]],
         [
           [2, 3, :number], [4, 5, :number],
