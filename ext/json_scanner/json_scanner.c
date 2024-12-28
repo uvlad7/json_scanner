@@ -80,15 +80,15 @@ typedef struct
   int current_path_len;
   int max_path_len;
   // Easier to use a Ruby array for result than convert later
-  VALUE points_list;
+  volatile VALUE points_list;
   // by depth
   size_t *starts;
-  // VALUE rb_err;
+  // volatile VALUE rb_err;
   yajl_handle handle;
 } scan_ctx;
 
 // FIXME: This will cause memory leak if ruby_xmalloc raises
-scan_ctx *scan_ctx_init(VALUE path_ary, int with_path, int symbolize_path_keys)
+scan_ctx *scan_ctx_init(VALUE path_ary)
 {
   int path_ary_len;
   scan_ctx *ctx;
@@ -98,6 +98,7 @@ scan_ctx *scan_ctx_init(VALUE path_ary, int with_path, int symbolize_path_keys)
   path_ary_len = rb_long2int(rb_array_len(path_ary));
   // Check types early before any allocations, so exception is ok
   // TODO: Fix this, just handle errors
+  // I'm not sure if it's possible that another Ruby thread changes path_ary items between these two loops
   for (int i = 0; i < path_ary_len; i++)
   {
     int path_len;
@@ -145,8 +146,6 @@ scan_ctx *scan_ctx_init(VALUE path_ary, int with_path, int symbolize_path_keys)
 
   ctx = ruby_xmalloc(sizeof(scan_ctx));
 
-  ctx->with_path = with_path;
-  ctx->symbolize_path_keys = symbolize_path_keys;
   ctx->max_path_len = 0;
 
   paths = ruby_xmalloc(sizeof(paths_t) * path_ary_len);
@@ -216,18 +215,19 @@ scan_ctx *scan_ctx_init(VALUE path_ary, int with_path, int symbolize_path_keys)
   ctx->paths_len = path_ary_len;
   ctx->current_path = ruby_xmalloc2(sizeof(path_elem_t), ctx->max_path_len);
 
-  ctx->current_path_len = 0;
-  ctx->points_list = rb_ary_new_capa(path_ary_len);
-  for (int i = 0; i < path_ary_len; i++)
-  {
-    rb_ary_push(ctx->points_list, rb_ary_new());
-  }
-
   ctx->starts = ruby_xmalloc2(sizeof(size_t), ctx->max_path_len + 1);
+  return ctx;
+}
+
+// resets temporary values in the config
+void scan_ctx_reset(scan_ctx *ctx, volatile VALUE points_list, int with_path, int symbolize_path_keys)
+{
+  ctx->current_path_len = 0;
   // ctx->rb_err = Qnil;
   ctx->handle = NULL;
-
-  return ctx;
+  ctx->points_list = points_list;
+  ctx->with_path = with_path;
+  ctx->symbolize_path_keys = symbolize_path_keys;
 }
 
 void scan_ctx_free(scan_ctx *ctx)
@@ -266,10 +266,10 @@ typedef enum
 } value_type;
 
 // noexcept
-VALUE create_point(scan_ctx *sctx, value_type type, size_t length, size_t curr_pos)
+volatile VALUE create_point(scan_ctx *sctx, value_type type, size_t length, size_t curr_pos)
 {
   VALUE values[3];
-  VALUE point = rb_ary_new_capa(3);
+  volatile VALUE point = rb_ary_new_capa(3);
   // noexcept
   values[1] = RB_ULONG2NUM(curr_pos);
   switch (type)
@@ -306,12 +306,12 @@ VALUE create_point(scan_ctx *sctx, value_type type, size_t length, size_t curr_p
 }
 
 // noexcept
-VALUE create_path(scan_ctx *sctx)
+volatile VALUE create_path(scan_ctx *sctx)
 {
-  VALUE path = rb_ary_new_capa(sctx->current_path_len);
+  volatile VALUE path = rb_ary_new_capa(sctx->current_path_len);
   for (int i = 0; i < sctx->current_path_len; i++)
   {
-    VALUE entry;
+    volatile VALUE entry;
     switch (sctx->current_path[i].type)
     {
     case PATH_KEY:
@@ -337,7 +337,7 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
   // TODO: Abort parsing if all paths are matched and no more mathces are possible: only trivial key/index matchers at the current level
   // TODO: Don't re-compare already matched prefixes; hard to invalidate, though
   // TODO: Might fail in case of no memory
-  VALUE point = Qundef;
+  volatile VALUE point = Qundef;
   int match;
   for (int i = 0; i < sctx->paths_len; i++)
   {
@@ -534,9 +534,9 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   yajl_handle handle;
   yajl_status stat;
   scan_ctx *ctx;
-  VALUE err = Qnil, result;
+  volatile VALUE err = Qnil, result;
   // Turned out callbacks can't raise exceptions
-  // VALUE callback_err;
+  // volatile VALUE callback_err;
 #if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)
   rb_scan_args_kw(RB_SCAN_ARGS_LAST_HASH_KEYWORDS, argc, argv, "21:", &json_str, &path_ary, &with_path_flag, &kwargs);
 #else
@@ -561,7 +561,14 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
 #else
   json_text_len = RSTRING_LEN(json_str);
 #endif
-  ctx = scan_ctx_init(path_ary, with_path, symbolize_path_keys);
+  ctx = scan_ctx_init(path_ary);
+  // Need to keep a ref to result array on the stack to prevent it from being GC-ed
+  result = rb_ary_new_capa(ctx->paths_len);
+  for (int i = 0; i < ctx->paths_len; i++)
+  {
+    rb_ary_push(result, rb_ary_new());
+  }
+  scan_ctx_reset(ctx, result, with_path, symbolize_path_keys);
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
   if (kwargs != Qnil) // it's safe to read kwargs_values only if rb_get_kwargs was called
@@ -589,7 +596,6 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
     yajl_free_error(handle, (unsigned char *)str);
   }
   // callback_err = ctx->rb_err;
-  result = ctx->points_list;
   scan_ctx_free(ctx);
   yajl_free(handle);
   if (err != Qnil)
