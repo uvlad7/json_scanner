@@ -28,7 +28,7 @@ if RUBY_VERSION >= "2.5"
   require "ruby_memcheck"
   require "ruby_memcheck/rspec/rake_task"
 
-  RubyMemcheck.config(skipped_ruby_functions: ["objspace_malloc_gc_stress"])
+  RubyMemcheck.config(skipped_ruby_functions: ["rb_utf8_str_new_cstr", "rb_exc_new_str"])
   namespace :spec do
     RubyMemcheck::RSpec::RakeTask.new(valgrind: :compile)
   end
