@@ -100,7 +100,7 @@ void scan_ctx_debug(scan_ctx *ctx)
   fprintf(stderr, "  paths_len: %d,\n", ctx->paths_len);
 
   fprintf(stderr, "  paths: [\n");
-  for (int i = 0; i < ctx->paths_len; i++)
+  for (int i = 0; ctx->paths && i < ctx->paths_len; i++)
   {
     fprintf(stderr, "    [");
     for (int j = 0; j < ctx->paths[i].len; j++)
@@ -301,10 +301,13 @@ void scan_ctx_reset(scan_ctx *ctx, volatile VALUE points_list, int with_path, in
 
 void scan_ctx_free(scan_ctx *ctx)
 {
+  fprintf(stderr, "scan_ctx_free\n");
   if (!ctx)
     return;
   ruby_xfree(ctx->starts);
   ruby_xfree(ctx->current_path);
+  if (!ctx->paths)
+    return;
   for (int i = 0; i < ctx->paths_len; i++)
   {
     ruby_xfree(ctx->paths[i].elems);
@@ -736,6 +739,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   // callback_err = ctx->rb_err;
   if (free_ctx)
   {
+    fprintf(stderr, "free_ctx\n");
     scan_ctx_free(ctx);
     ruby_xfree(ctx);
   }
