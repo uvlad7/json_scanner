@@ -18,6 +18,9 @@ jobs:
           - '3.2.2'
           - '2.7.8'
           - '2.3.8'
+          - '2.5.9'
+    env:
+      BUNDLE_GEMFILE: ${{ (matrix.ruby >= '2.7' && '') || (matrix.ruby >= '2.5' && 'Gemfile_ruby_2_5') || 'Gemfile_ruby_2_3' }}
 
     steps:
     - name: Dependencies
@@ -25,9 +28,6 @@ jobs:
       with:
         packages: libyajl2 libyajl-dev valgrind
     - uses: actions/checkout@v4
-    - name: Use proper Gemfile.lock
-      if: ${{ matrix.ruby == '2.3.8' }}
-      run: mv Gemfile_old_ruby.lock Gemfile.lock
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
@@ -36,5 +36,5 @@ jobs:
     - name: Run the default task
       run: bundle exec rake
     - name: Run valgrind
-      if: ${{ matrix.ruby != '2.3.8' }}
+      if: ${{ matrix.ruby >= '2.5' }}
       run: bundle exec rake spec:valgrind
