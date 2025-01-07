@@ -77,11 +77,11 @@ typedef struct
 {
   int with_path;
   int symbolize_path_keys;
-  paths_t *paths;
   int paths_len;
-  path_elem_t *current_path;
+  paths_t *paths;
   int current_path_len;
   int max_path_len;
+  path_elem_t *current_path;
   // Easier to use a Ruby array for result than convert later
   volatile VALUE points_list;
   // by depth
@@ -89,6 +89,75 @@ typedef struct
   // volatile VALUE rb_err;
   yajl_handle handle;
 } scan_ctx;
+
+void scan_ctx_debug(scan_ctx *ctx)
+{
+  // actually might have been cleared by GC already, be careful, debug only when in valid state
+  VALUE points_list_inspect = ctx->points_list == Qundef ? rb_str_new_cstr("undef") : rb_sprintf("%" PRIsVALUE, rb_inspect(ctx->points_list));
+  fprintf(stderr, "\nscan_ctx {\n");
+  fprintf(stderr, "  with_path: %s,\n", ctx->with_path ? "true" : "false");
+  fprintf(stderr, "  symbolize_path_keys: %s,\n", ctx->symbolize_path_keys ? "true" : "false");
+  fprintf(stderr, "  paths_len: %d,\n", ctx->paths_len);
+
+  fprintf(stderr, "  paths: [\n");
+  for (int i = 0; i < ctx->paths_len; i++)
+  {
+    fprintf(stderr, "    [");
+    for (int j = 0; j < ctx->paths[i].len; j++)
+    {
+      switch (ctx->paths[i].elems[j].type)
+      {
+      case MATCHER_KEY:
+        fprintf(stderr, "'%.*s'", (int)ctx->paths[i].elems[j].value.key.len, ctx->paths[i].elems[j].value.key.val);
+        break;
+      case MATCHER_INDEX:
+        fprintf(stderr, "%ld", ctx->paths[i].elems[j].value.index);
+        break;
+      case MATCHER_INDEX_RANGE:
+        fprintf(stderr, "(%ld..%ld)", ctx->paths[i].elems[j].value.range.start, ctx->paths[i].elems[j].value.range.end);
+        break;
+      case MATCHER_ANY_KEY:
+        fprintf(stderr, "('*'..'*')");
+        break;
+      }
+      if (j < ctx->paths[i].len - 1)
+        fprintf(stderr, ", ");
+    }
+    fprintf(stderr, "],\n");
+  }
+  fprintf(stderr, "  ],\n");
+
+  fprintf(stderr, "  current_path_len: %d,\n", ctx->current_path_len);
+  fprintf(stderr, "  max_path_len: %d,\n", ctx->max_path_len);
+  fprintf(stderr, "  current_path: [");
+  for (int i = 0; i < ctx->current_path_len; i++)
+  {
+    switch (ctx->current_path[i].type)
+    {
+    case PATH_KEY:
+      fprintf(stderr, "'%.*s'", (int)ctx->current_path[i].value.key.len, ctx->current_path[i].value.key.val);
+      break;
+    case PATH_INDEX:
+      fprintf(stderr, "%ld", ctx->current_path[i].value.index);
+    }
+    if (i < ctx->current_path_len - 1)
+      fprintf(stderr, ", ");
+  }
+  fprintf(stderr, "],\n");
+
+  fprintf(stderr, "  points_list: %.*s,\n", RSTRING_LENINT(points_list_inspect), RSTRING_PTR(points_list_inspect));
+  fprintf(stderr, "  starts: [");
+  for (int i = 0; i <= ctx->max_path_len; i++)
+  {
+    fprintf(stderr, "%ld", ctx->starts[i]);
+    if (i < ctx->max_path_len)
+      fprintf(stderr, ", ");
+  }
+  fprintf(stderr, "],\n");
+
+  fprintf(stderr, "  handle: %p,\n", ctx->handle);
+  fprintf(stderr, "}\n\n\n");
+}
 
 // FIXME: This will cause memory leak if ruby_xmalloc raises
 void scan_ctx_init(scan_ctx *ctx, volatile VALUE path_ary)
@@ -592,7 +661,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   yajl_status stat;
   scan_ctx *ctx;
   int free_ctx = true;
-  volatile VALUE err_msg = Qnil, err, result;
+  volatile VALUE err_msg = Qnil, bytes_consumed, err, result;
   // Turned out callbacks can't raise exceptions
   // volatile VALUE callback_err;
 #if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)
@@ -636,6 +705,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
     rb_ary_push(result, rb_ary_new());
   }
   scan_ctx_reset(ctx, result, with_path, symbolize_path_keys);
+  scan_ctx_debug(ctx);
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
   if (kwargs != Qnil) // it's safe to read kwargs_values only if rb_get_kwargs was called
@@ -660,6 +730,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   {
     char *str = (char *)yajl_get_error(handle, verbose_error, (unsigned char *)json_text, json_text_len);
     err_msg = rb_utf8_str_new_cstr(str);
+    bytes_consumed = RB_ULONG2NUM(yajl_get_bytes_consumed(handle));
     yajl_free_error(handle, (unsigned char *)str);
   }
   // callback_err = ctx->rb_err;
@@ -672,7 +743,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   if (err_msg != Qnil)
   {
     err = rb_exc_new_str(rb_eJsonScannerParseError, err_msg);
-    rb_ivar_set(err, rb_iv_bytes_consumed, RB_ULONG2NUM(yajl_get_bytes_consumed(handle)));
+    rb_ivar_set(err, rb_iv_bytes_consumed, bytes_consumed);
     rb_exc_raise(err);
   }
   // if (callback_err != Qnil)
