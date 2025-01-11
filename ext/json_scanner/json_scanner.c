@@ -83,10 +83,11 @@ typedef struct
   int max_path_len;
   path_elem_t *current_path;
   // Easier to use a Ruby array for result than convert later
-  volatile VALUE points_list;
+  // must be supplied by the caller and RB_GC_GUARD-ed if it isn't on the stack
+  VALUE points_list;
   // by depth
   size_t *starts;
-  // volatile VALUE rb_err;
+  // VALUE rb_err;
   yajl_handle handle;
 } scan_ctx;
 
@@ -160,7 +161,8 @@ void scan_ctx_debug(scan_ctx *ctx)
 }
 
 // FIXME: This will cause memory leak if ruby_xmalloc raises
-void scan_ctx_init(scan_ctx *ctx, volatile VALUE path_ary)
+// path_ary must be RB_GC_GUARD-ed by the caller
+void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
 {
   int path_ary_len;
   paths_t *paths;
@@ -288,7 +290,7 @@ void scan_ctx_init(scan_ctx *ctx, volatile VALUE path_ary)
 }
 
 // resets temporary values in the config
-void scan_ctx_reset(scan_ctx *ctx, volatile VALUE points_list, int with_path, int symbolize_path_keys)
+void scan_ctx_reset(scan_ctx *ctx, VALUE points_list, int with_path, int symbolize_path_keys)
 {
   // TODO: reset matched_depth if implemented
   ctx->current_path_len = 0;
@@ -340,7 +342,7 @@ typedef enum
 VALUE create_point(scan_ctx *sctx, value_type type, size_t length, size_t curr_pos)
 {
   VALUE values[3];
-  volatile VALUE point = rb_ary_new_capa(3);
+  VALUE point = rb_ary_new_capa(3);
   // noexcept
   values[1] = RB_ULONG2NUM(curr_pos);
   switch (type)
@@ -379,10 +381,10 @@ VALUE create_point(scan_ctx *sctx, value_type type, size_t length, size_t curr_p
 // noexcept
 VALUE create_path(scan_ctx *sctx)
 {
-  volatile VALUE path = rb_ary_new_capa(sctx->current_path_len);
+  VALUE path = rb_ary_new_capa(sctx->current_path_len);
   for (int i = 0; i < sctx->current_path_len; i++)
   {
-    volatile VALUE entry;
+    VALUE entry;
     switch (sctx->current_path[i].type)
     {
     case PATH_KEY:
@@ -408,7 +410,7 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
   // TODO: Abort parsing if all paths are matched and no more mathces are possible: only trivial key/index matchers at the current level
   // TODO: Don't re-compare already matched prefixes; hard to invalidate, though
   // TODO: Might fail in case of no memory
-  volatile VALUE point = Qundef, path;
+  VALUE point = Qundef, path;
   int match;
   for (int i = 0; i < sctx->paths_len; i++)
   {
@@ -664,9 +666,9 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   yajl_status stat;
   scan_ctx *ctx;
   int free_ctx = true;
-  volatile VALUE err_msg = Qnil, bytes_consumed, err, result;
+  VALUE err_msg = Qnil, bytes_consumed, err, result;
   // Turned out callbacks can't raise exceptions
-  // volatile VALUE callback_err;
+  // VALUE callback_err;
 #if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)
   rb_scan_args_kw(RB_SCAN_ARGS_LAST_HASH_KEYWORDS, argc, argv, "21:", &json_str, &path_ary, &with_path_flag, &kwargs);
 #else
