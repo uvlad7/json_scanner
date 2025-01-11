@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+# frozen_string_literal: true
+
 argv = %w[bundle install]
 
 if RUBY_VERSION < "2.7"

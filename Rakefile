@@ -10,6 +10,7 @@ require "rubocop/rake_task"
 RuboCop::RakeTask.new
 
 require "rake/extensiontask"
+require_relative "spec/extensiontesttask"
 
 task build: :compile
 task package: :build
@@ -17,9 +18,10 @@ task pkg: :build
 
 GEMSPEC = Gem::Specification.load("json_scanner.gemspec")
 
-Rake::ExtensionTask.new("json_scanner", GEMSPEC) do |ext|
+Rake::ExtensionTestTask.new("json_scanner", GEMSPEC) do |ext|
   ext.lib_dir = "lib/json_scanner"
   # https://karottenreibe.github.io/2009/10/30/ruby-c-extension-7/
+  ext.c_spec_files = FileList["spec/**{,/*/**}/*_spec.c"]
 end
 
 task default: %i[clobber compile spec rubocop]
