@@ -62,6 +62,7 @@ You can also create a config and reuse it
 require "json_scanner"
 
 config = JsonScanner::Config.new([[], ["key"], [(0..-1)]])
+# => #<JsonScanner::Config [[], ['key'], [(0..9223372036854775807)]]>
 JsonScanner.scan('{"key": "42"}', config)
 # => [[[0, 13, :object]], [[8, 12, :string]], []]
 JsonScanner.scan('{"key": "42"}', config, with_path: true)

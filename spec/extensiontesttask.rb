@@ -51,15 +51,15 @@ module Rake
         "../../#{@ext_dir}",
         "/usr/include/ruby-#{RUBY_VERSION}",
         "/usr/include/ruby-#{RUBY_VERSION}/#{RUBY_PLATFORM}",
-      ]).map { |l| "-I" + l }.join(" ")
+      ]).map { |l| "-I#{l}" }.join(" ")
     end
 
     def libraries
-      @libraries ||= (@test_libraries + %w[ruby pthread crypto]).map { |l| "-l" + l }.join(" ")
+      @libraries ||= (@test_libraries + %w[ruby pthread crypto]).map { |l| "-l#{l}" }.join(" ")
     end
 
     def lib_folders
-      @lib_folders ||= (@test_lib_folders + %w[/usr/lib .]).map { |l| "-L" + l }.join(" ")
+      @lib_folders ||= (@test_lib_folders + %w[/usr/lib .]).map { |l| "-L#{l}" }.join(" ")
     end
 
     def compile_tests

@@ -651,6 +651,43 @@ VALUE config_m_initialize(VALUE self, VALUE path_ary)
   return self;
 }
 
+VALUE config_m_inspect(VALUE self)
+{
+  scan_ctx *ctx;
+  VALUE res;
+  TypedData_Get_Struct(self, scan_ctx, &config_type, ctx);
+  res = rb_sprintf("#<%" PRIsVALUE " [", rb_class_name(CLASS_OF(self)));
+  for (int i = 0; ctx->paths && i < ctx->paths_len; i++)
+  {
+    rb_str_cat_cstr(res, "[");
+    for (int j = 0; j < ctx->paths[i].len; j++)
+    {
+      switch (ctx->paths[i].elems[j].type)
+      {
+      case MATCHER_KEY:
+        rb_str_catf(res, "'%.*s'", (int)ctx->paths[i].elems[j].value.key.len, ctx->paths[i].elems[j].value.key.val);
+        break;
+      case MATCHER_INDEX:
+        rb_str_catf(res, "%ld", ctx->paths[i].elems[j].value.index);
+        break;
+      case MATCHER_INDEX_RANGE:
+        rb_str_catf(res, "(%ld..%ld)", ctx->paths[i].elems[j].value.range.start, ctx->paths[i].elems[j].value.range.end);
+        break;
+      case MATCHER_ANY_KEY:
+        rb_str_cat_cstr(res, "('*'..'*')");
+        break;
+      }
+      if (j < ctx->paths[i].len - 1)
+        rb_str_cat_cstr(res, ", ");
+    }
+    rb_str_cat_cstr(res, "]");
+    if (i < ctx->paths_len - 1)
+      rb_str_cat_cstr(res, ", ");
+  }
+  rb_str_cat_cstr(res, "]>");
+  return res;
+}
+
 static yajl_callbacks scan_callbacks = {
     scan_on_null,
     scan_on_boolean,
@@ -785,6 +822,7 @@ Init_json_scanner(void)
   rb_cJsonScannerConfig = rb_define_class_under(rb_mJsonScanner, "Config", rb_cObject);
   rb_define_alloc_func(rb_cJsonScannerConfig, config_alloc);
   rb_define_method(rb_cJsonScannerConfig, "initialize", config_m_initialize, 1);
+  rb_define_method(rb_cJsonScannerConfig, "inspect", config_m_inspect, 0);
   rb_define_const(rb_mJsonScanner, "ANY_INDEX", rb_range_new(INT2FIX(0), INT2FIX(-1), false));
   any_key_sym = rb_id2sym(rb_intern("*"));
   rb_define_const(rb_mJsonScanner, "ANY_KEY", rb_range_new(any_key_sym, any_key_sym, false));

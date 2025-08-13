@@ -234,10 +234,18 @@ RSpec.describe JsonScanner do
       key = "abracadabra".dup
       conf = described_class.new [[], [key]]
       key["cad"] = 0.chr
-      key = nil
+      key = nil # rubocop:disable Lint/UselessAssignment
       GC.start
-      expect(10.times.map { JsonScanner.scan '{"abracadabra": 10}', conf, with_path: true }.uniq).to eq([[[[[], [0, 19, :object]]], [[["abracadabra"], [16, 18, :number]]]]])
-      expect(10.times.map { JsonScanner.scan '{"abracadabra": 10}', conf }.uniq).to eq([[[[0, 19, :object]], [[16, 18, :number]]]])
+      expect(
+        10.times.map do
+          JsonScanner.scan '{"abracadabra": 10}', conf, with_path: true
+        end.uniq,
+      ).to eq([[[[[], [0, 19, :object]]], [[["abracadabra"], [16, 18, :number]]]]])
+      expect(
+        10.times.map do
+          JsonScanner.scan '{"abracadabra": 10}', conf
+        end.uniq,
+      ).to eq([[[[0, 19, :object]], [[16, 18, :number]]]])
     end
 
     it "re-raises exceptions" do
@@ -250,6 +258,12 @@ RSpec.describe JsonScanner do
       expect do
         described_class.new [[(-42..1)]]
       end.to raise_error ArgumentError
+    end
+
+    it "supports inspect" do
+      expect(
+        described_class.new([[], ["abracadabra", JsonScanner::ANY_INDEX], [42, JsonScanner::ANY_KEY]]).inspect,
+      ).to eq("#<JsonScanner::Config [[], ['abracadabra', (0..9223372036854775807)], [42, ('*'..'*')]]>")
     end
   end
 end

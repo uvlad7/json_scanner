@@ -1,6 +1,19 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+#  Disable 'extensions are not built' warning
+module AnnoyingGemWarningSilencer
+  def contains_requirable_file?(file)
+    return super unless source.is_a?(Bundler::Source::Gemspec)
+    return false if respond_to?(:ignored?) && ignored?
+    return false if missing_extensions?
+
+    super
+  end
+end
+
+Gem::BasicSpecification.prepend(AnnoyingGemWarningSilencer)
+
 require "bundler/setup"
 require "json_scanner"
 
