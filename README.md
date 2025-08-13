@@ -16,6 +16,8 @@ If bundler is not being used to manage dependencies, install the gem by executin
 
 ## Usage
 
+Basic usage
+
 ```ruby
 require "json"
 require "json_scanner"
@@ -39,6 +41,35 @@ JSON.parse(emoji_json.byteslice(begin_pos...end_pos), quirks_mode: true)
 # You can also do this
 # emoji_json.force_encoding(Encoding::BINARY)[begin_pos...end_pos].force_encoding(Encoding::UTF_8)
 # => "\"😍\""
+
+# Ranges are supported as matchers for indexes with the following restrictions:
+# - range start must be positive
+# - range end must be positive or -1
+# - range with -1 end must be closed, e. g. (0..-1) works, but (0...-1) is forbidden
+JsonScanner.scan('[0, 42, 0]', [[(1..-1)]])
+# => [[[4, 6, :number], [8, 9, :number]]]
+JsonScanner.scan('[0, 42, 0]', [[JsonScanner::ANY_INDEX]])
+# => [[[1, 2, :number], [4, 6, :number], [8, 9, :number]]]
+
+# Special matcher JsonScanner::ANY_KEY is supported for object keys
+JsonScanner.scan('{"a": 1, "b": 2}', [[JsonScanner::ANY_KEY]], with_path: true)
+# => [[[["a"], [6, 7, :number]], [["b"], [14, 15, :number]]]]
+```
+
+You can also create a config and reuse it
+
+```ruby
+require "json_scanner"
+
+config = JsonScanner::Config.new([[], ["key"], [(0..-1)]])
+JsonScanner.scan('{"key": "42"}', config)
+# => [[[0, 13, :object]], [[8, 12, :string]], []]
+JsonScanner.scan('{"key": "42"}', config, with_path: true)
+# => [[[[], [0, 13, :object]]], [[["key"], [8, 12, :string]]], []]
+JsonScanner.scan('[0, 42]', config)
+# => [[[0, 7, :array]], [], [[1, 2, :number], [4, 6, :number]]]
+JsonScanner.scan('[0, 42]', config, with_path: true)
+# => [[[[], [0, 7, :array]]], [], [[[0], [1, 2, :number]], [[1], [4, 6, :number]]]]
 ```
 
 ## Development
