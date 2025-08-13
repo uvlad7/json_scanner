@@ -162,7 +162,7 @@ void scan_ctx_debug(scan_ctx *ctx)
 
 // FIXME: This will cause memory leak if ruby_xmalloc raises
 // path_ary must be RB_GC_GUARD-ed by the caller
-void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
+VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
 {
   int path_ary_len;
   paths_t *paths;
@@ -201,16 +201,16 @@ void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
         long end_val;
         int open_ended;
         if (rb_range_values(entry, &range_beg, &range_end, &open_ended) != Qtrue)
-          rb_raise(rb_eArgError, "path elements must be strings, integers, or ranges");
+          return rb_exc_new_cstr(rb_eArgError, "path elements must be strings, integers, or ranges");
         if (range_beg != any_key_sym || range_end != any_key_sym)
         {
           if (RB_NUM2LONG(range_beg) < 0L)
-            rb_raise(rb_eArgError, "range start must be positive");
+            return rb_exc_new_cstr(rb_eArgError, "range start must be positive");
           end_val = RB_NUM2LONG(range_end);
           if (end_val < -1L)
-            rb_raise(rb_eArgError, "range end must be positive or -1");
+            return rb_exc_new_cstr(rb_eArgError, "range end must be positive or -1");
           if (end_val == -1L && open_ended)
-            rb_raise(rb_eArgError, "range with -1 end must be closed");
+            return rb_exc_new_cstr(rb_eArgError, "range with -1 end must be closed");
         }
       }
       }
@@ -238,6 +238,13 @@ void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
         /* fall through */
       case T_STRING:
       {
+        if (string_keys != Qundef)
+        {
+          // If string_keys is provided, we need to duplicate the string
+          // to avoid use-after-free issues and to add the newly created string to the string_keys array
+          entry = rb_str_dup(entry);
+          rb_ary_push(string_keys, entry);
+        }
         paths[i].elems[j].type = MATCHER_KEY;
         paths[i].elems[j].value.key.val = RSTRING_PTR(entry);
 #if LONG_MAX > SIZE_MAX
@@ -287,6 +294,7 @@ void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
   ctx->current_path = ruby_xmalloc2(sizeof(path_elem_t), ctx->max_path_len);
 
   ctx->starts = ruby_xmalloc2(sizeof(size_t), ctx->max_path_len + 1);
+  return Qundef; // no error
 }
 
 // resets temporary values in the config
@@ -303,7 +311,7 @@ void scan_ctx_reset(scan_ctx *ctx, VALUE points_list, int with_path, int symboli
 
 void scan_ctx_free(scan_ctx *ctx)
 {
-  fprintf(stderr, "scan_ctx_free\n");
+  // fprintf(stderr, "scan_ctx_free\n");
   if (!ctx)
     return;
   ruby_xfree(ctx->starts);
@@ -631,8 +639,15 @@ VALUE config_alloc(VALUE self)
 VALUE config_m_initialize(VALUE self, VALUE path_ary)
 {
   scan_ctx *ctx;
+  VALUE scan_ctx_init_err, string_keys;
   TypedData_Get_Struct(self, scan_ctx, &config_type, ctx);
-  scan_ctx_init(ctx, path_ary);
+  string_keys = rb_ary_new();
+  scan_ctx_init_err = scan_ctx_init(ctx, path_ary, string_keys);
+  if (scan_ctx_init_err != Qundef)
+  {
+    rb_exc_raise(scan_ctx_init_err);
+  }
+  rb_iv_set(self, "string_keys", string_keys);
   return self;
 }
 
@@ -700,8 +715,14 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   }
   else
   {
+    VALUE scan_ctx_init_err;
     ctx = ruby_xmalloc(sizeof(scan_ctx));
-    scan_ctx_init(ctx, path_ary);
+    scan_ctx_init_err = scan_ctx_init(ctx, path_ary, Qundef);
+    if (scan_ctx_init_err != Qundef)
+    {
+      ruby_xfree(ctx);
+      rb_exc_raise(scan_ctx_init_err);
+    }
   }
   // Need to keep a ref to result array on the stack to prevent it from being GC-ed
   result = rb_ary_new_capa(ctx->paths_len);
@@ -710,7 +731,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
     rb_ary_push(result, rb_ary_new());
   }
   scan_ctx_reset(ctx, result, with_path, symbolize_path_keys);
-  scan_ctx_debug(ctx);
+  // scan_ctx_debug(ctx);
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
   if (kwargs != Qnil) // it's safe to read kwargs_values only if rb_get_kwargs was called
@@ -741,7 +762,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   // callback_err = ctx->rb_err;
   if (free_ctx)
   {
-    fprintf(stderr, "free_ctx\n");
+    // fprintf(stderr, "free_ctx\n");
     scan_ctx_free(ctx);
     ruby_xfree(ctx);
   }

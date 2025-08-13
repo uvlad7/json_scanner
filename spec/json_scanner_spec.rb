@@ -231,8 +231,25 @@ RSpec.describe JsonScanner do
 
   describe described_class::Config do
     it "saves state" do
-      conf = described_class.new [[], ["a"]]
-      10.times { JsonScanner.scan '{"a": 10}', conf, with_path: true }
+      key = "abracadabra".dup
+      conf = described_class.new [[], [key]]
+      key["cad"] = 0.chr
+      key = nil
+      GC.start
+      expect(10.times.map { JsonScanner.scan '{"abracadabra": 10}', conf, with_path: true }.uniq).to eq([[[[[], [0, 19, :object]]], [[["abracadabra"], [16, 18, :number]]]]])
+      expect(10.times.map { JsonScanner.scan '{"abracadabra": 10}', conf }.uniq).to eq([[[[0, 19, :object]], [[16, 18, :number]]]])
+    end
+
+    it "re-raises exceptions" do
+      expect do
+        described_class.new [[(0...-1)]]
+      end.to raise_error ArgumentError
+      expect do
+        described_class.new [[(0..-2)]]
+      end.to raise_error ArgumentError
+      expect do
+        described_class.new [[(-42..1)]]
+      end.to raise_error ArgumentError
     end
   end
 end

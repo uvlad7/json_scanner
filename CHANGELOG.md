@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Possibility to reuse config using `JsonScanner::Config`
+
 ### Fixed
 
 - Potential problems with garbage collection of the `result` array and other `VALUE`s
+- Memory leak when `ArgumentError` is raised by `JsonScanner.scan`
 
 ### Added
 
