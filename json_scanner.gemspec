@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.email = ["uvlad7@gmail.com"]
 
   spec.summary = "Extract values from JSON without full parsing"
-  spec.description = "This gem uses yajl lib to scan a json string and allows you to parse pieces of it"
+  spec.description = "This gem uses the yajl lib to scan a JSON string and allows you to parse pieces of it"
   spec.homepage = "https://github.com/uvlad7/json_scanner"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 2.3.8"

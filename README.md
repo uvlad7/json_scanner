@@ -2,7 +2,7 @@
 
 # JsonScanner
 
-Extract values from JSON without full parsing. This gem uses yajl lib to scan a json string and allows you to parse pieces of it.
+Extract values from JSON without full parsing. This gem uses the `yajl` library to scan a JSON string and allows you to parse pieces of it.
 
 ## Installation
 
@@ -34,8 +34,8 @@ emoji_json = '{"grin": "😁", "heart": "😍", "rofl": "🤣"}'
 begin_pos, end_pos, = JsonScanner.scan(emoji_json, [["heart"]], false).first.first
 emoji_json.byteslice(begin_pos...end_pos)
 # => "\"😍\""
-# Note: most likely don't need `quirks_mode` option, unless you are using some old ruby
-# with stdlib version of json gem or its old version. In new versions `quirks_mode` is default
+# Note: You most likely don't need the `quirks_mode` option unless you are using an older version
+# of Ruby with the stdlib - or just also old - version of the json gem. In newer versions, `quirks_mode` is enabled by default.
 JSON.parse(emoji_json.byteslice(begin_pos...end_pos), quirks_mode: true)
 # => "😍"
 # You can also do this
@@ -43,9 +43,9 @@ JSON.parse(emoji_json.byteslice(begin_pos...end_pos), quirks_mode: true)
 # => "\"😍\""
 
 # Ranges are supported as matchers for indexes with the following restrictions:
-# - range start must be positive
-# - range end must be positive or -1
-# - range with -1 end must be closed, e. g. (0..-1) works, but (0...-1) is forbidden
+# - the start of a range must be positive
+# - the end of a range must be positive or -1
+# - a range with -1 end must be closed, e.g. (0..-1) works, but (0...-1) is forbidden
 JsonScanner.scan('[0, 42, 0]', [[(1..-1)]])
 # => [[[4, 6, :number], [8, 9, :number]]]
 JsonScanner.scan('[0, 42, 0]', [[JsonScanner::ANY_INDEX]])
@@ -79,6 +79,15 @@ JsonScanner.scan('[0, 42, 0', [[(1..-1)]], allow_partial_values: true)
 # => [[[4, 6, :number], [8, 9, :number]]]
 JsonScanner.scan('{"a": 1}', [[JsonScanner::ANY_KEY]], with_path: true, symbolize_path_keys: true)
 # => [[[[:a], [6, 7, :number]]]]
+```
+
+Note that the standard `JSON` library supports comments, so you may want to enable it in the `JsonScanner` as well
+```ruby
+json_str = '{"answer": {"value": 42 /* the Ultimate Question of Life, the Universe, and Everything */ }}'
+JsonScanner.scan(json_str, [["answer"]], allow_comments: true).first.map do |begin_pos, end_pos, _type|
+  JSON.parse(json_str.byteslice(begin_pos...end_pos), quirks_mode: true)
+end
+# => [{"value"=>42}]
 ```
 
 You can also create a config and reuse it
