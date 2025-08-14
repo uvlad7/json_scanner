@@ -131,6 +131,14 @@ RSpec.describe JsonScanner do
         expect(exc.bytes_consumed).to eq(8)
       end,
     )
+    expect do
+      described_class.scan("[[1,2", [])
+    end.to(
+      raise_error(described_class::ParseError) do |exc|
+        # 6 because of the final " " chunk - that's how yajl works
+        expect(exc.bytes_consumed).to eq(6)
+      end,
+    )
   end
 
   it "allows to return an actual path to the element" do

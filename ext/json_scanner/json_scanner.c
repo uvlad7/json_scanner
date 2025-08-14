@@ -97,7 +97,7 @@ inline size_t scan_ctx_get_bytes_consumed(scan_ctx *ctx)
   return ctx->yajl_bytes_consumed + yajl_get_bytes_consumed(ctx->handle);
 }
 
-inline void scan_ctx_update_bytes_consumed(scan_ctx *ctx)
+inline void scan_ctx_save_bytes_consumed(scan_ctx *ctx)
 {
   ctx->yajl_bytes_consumed += yajl_get_bytes_consumed(ctx->handle);
 }
@@ -734,7 +734,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   yajl_status stat;
   scan_ctx *ctx;
   int free_ctx = true;
-  VALUE err_msg = Qnil, bytes_consumed, err, result;
+  VALUE err_msg = Qnil, bytes_consumed, result;
   // Turned out callbacks can't raise exceptions
   // VALUE callback_err;
 #if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)
@@ -802,19 +802,17 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   }
   ctx->handle = handle;
   stat = yajl_parse(handle, (unsigned char *)json_text, json_text_len);
-  scan_ctx_update_bytes_consumed(ctx);
   if (stat == yajl_status_ok)
   {
+    scan_ctx_save_bytes_consumed(ctx);
     stat = yajl_complete_parse(handle);
-    scan_ctx_update_bytes_consumed(ctx);
   }
 
   if (stat != yajl_status_ok)
   {
     char *str = (char *)yajl_get_error(handle, verbose_error, (unsigned char *)json_text, json_text_len);
     err_msg = rb_utf8_str_new_cstr(str);
-    // TODO: maybe use scan_ctx_get_bytes_consumed here too? But it makes difference in premature EOF
-    bytes_consumed = ULL2NUM(yajl_get_bytes_consumed(handle));
+    bytes_consumed = ULL2NUM(scan_ctx_get_bytes_consumed(ctx));
     yajl_free_error(handle, (unsigned char *)str);
   }
   // // Needed when yajl_allow_partial_values is set
@@ -845,7 +843,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   yajl_free(handle);
   if (err_msg != Qnil)
   {
-    err = rb_exc_new_str(rb_eJsonScannerParseError, err_msg);
+    VALUE err = rb_exc_new_str(rb_eJsonScannerParseError, err_msg);
     rb_ivar_set(err, rb_iv_bytes_consumed, bytes_consumed);
     rb_exc_raise(err);
   }
