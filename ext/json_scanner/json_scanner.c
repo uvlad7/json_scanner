@@ -89,7 +89,18 @@ typedef struct
   size_t *starts;
   // VALUE rb_err;
   yajl_handle handle;
+  size_t yajl_bytes_consumed;
 } scan_ctx;
+
+inline size_t scan_ctx_get_bytes_consumed(scan_ctx *ctx)
+{
+  return ctx->yajl_bytes_consumed + yajl_get_bytes_consumed(ctx->handle);
+}
+
+inline void scan_ctx_update_bytes_consumed(scan_ctx *ctx)
+{
+  ctx->yajl_bytes_consumed += yajl_get_bytes_consumed(ctx->handle);
+}
 
 void scan_ctx_debug(scan_ctx *ctx)
 {
@@ -158,6 +169,7 @@ void scan_ctx_debug(scan_ctx *ctx)
   fprintf(stderr, "],\n");
 
   fprintf(stderr, "  handle: %p,\n", ctx->handle);
+  fprintf(stderr, "  yajl_bytes_consumed: %ld,\n", ctx->yajl_bytes_consumed);
   fprintf(stderr, "}\n\n\n");
 }
 
@@ -305,6 +317,7 @@ void scan_ctx_reset(scan_ctx *ctx, VALUE points_list, int with_path, int symboli
   ctx->current_path_len = 0;
   // ctx->rb_err = Qnil;
   ctx->handle = NULL;
+  ctx->yajl_bytes_consumed = 0;
   ctx->points_list = points_list;
   ctx->with_path = with_path;
   ctx->symbolize_path_keys = symbolize_path_keys;
@@ -351,7 +364,7 @@ typedef enum
 VALUE create_point(scan_ctx *sctx, value_type type, size_t length)
 {
   VALUE values[3], point;
-  size_t curr_pos = yajl_get_bytes_consumed(sctx->handle);
+  size_t curr_pos = scan_ctx_get_bytes_consumed(sctx);
   point = rb_ary_new_capa(3);
   // noexcept
   values[1] = ULL2NUM(curr_pos);
@@ -359,27 +372,27 @@ VALUE create_point(scan_ctx *sctx, value_type type, size_t length)
   {
     // FIXME: size_t can be longer than ulong
   case null_value:
-    values[0] = LL2NUM(curr_pos - length);
+    values[0] = ULL2NUM(curr_pos - length);
     values[2] = null_sym;
     break;
   case boolean_value:
-    values[0] = LL2NUM(curr_pos - length);
+    values[0] = ULL2NUM(curr_pos - length);
     values[2] = boolean_sym;
     break;
   case number_value:
-    values[0] = LL2NUM(curr_pos - length);
+    values[0] = ULL2NUM(curr_pos - length);
     values[2] = number_sym;
     break;
   case string_value:
-    values[0] = LL2NUM(curr_pos - length);
+    values[0] = ULL2NUM(curr_pos - length);
     values[2] = string_sym;
     break;
   case object_value:
-    values[0] = LL2NUM(sctx->starts[sctx->current_path_len]);
+    values[0] = ULL2NUM(sctx->starts[sctx->current_path_len]);
     values[2] = object_sym;
     break;
   case array_value:
-    values[0] = LL2NUM(sctx->starts[sctx->current_path_len]);
+    values[0] = ULL2NUM(sctx->starts[sctx->current_path_len]);
     values[2] = array_sym;
     break;
   }
@@ -501,7 +514,6 @@ int scan_on_boolean(void *ctx, int bool_val)
 int scan_on_number(void *ctx, const char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  // yajl_get_bytes_consumed works incorrectly for numbers in yajl_allow_partial_values mode when partial value is a number
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
@@ -530,7 +542,7 @@ int scan_on_start_object(void *ctx)
     return true;
   }
   increment_arr_index(sctx);
-  sctx->starts[sctx->current_path_len] = yajl_get_bytes_consumed(sctx->handle) - 1;
+  sctx->starts[sctx->current_path_len] = scan_ctx_get_bytes_consumed(sctx) - 1;
   if (sctx->current_path_len < sctx->max_path_len)
     sctx->current_path[sctx->current_path_len].type = PATH_KEY;
   sctx->current_path_len++;
@@ -570,7 +582,7 @@ int scan_on_start_array(void *ctx)
     return true;
   }
   increment_arr_index(sctx);
-  sctx->starts[sctx->current_path_len] = yajl_get_bytes_consumed(sctx->handle) - 1;
+  sctx->starts[sctx->current_path_len] = scan_ctx_get_bytes_consumed(sctx) - 1;
   if (sctx->current_path_len < sctx->max_path_len)
   {
     sctx->current_path[sctx->current_path_len].type = PATH_INDEX;
@@ -789,13 +801,18 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   }
   ctx->handle = handle;
   stat = yajl_parse(handle, (unsigned char *)json_text, json_text_len);
+  scan_ctx_update_bytes_consumed(ctx);
   if (stat == yajl_status_ok)
+  {
     stat = yajl_complete_parse(handle);
+    scan_ctx_update_bytes_consumed(ctx);
+  }
 
   if (stat != yajl_status_ok)
   {
     char *str = (char *)yajl_get_error(handle, verbose_error, (unsigned char *)json_text, json_text_len);
     err_msg = rb_utf8_str_new_cstr(str);
+    // TODO: maybe use scan_ctx_get_bytes_consumed here too? But it makes difference in premature EOF
     bytes_consumed = ULL2NUM(yajl_get_bytes_consumed(handle));
     yajl_free_error(handle, (unsigned char *)str);
   }

@@ -11,12 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Potential problems with garbage collection of the `result` array and other `VALUE`s
 - Memory leak when `ArgumentError` is raised by `JsonScanner.scan`
+- Fix `yajl_get_bytes_consumed` usage for cases when `yajl_complete_parse` causes callbacks with another `" "` "chunk" - premature EOF with number in the end
 
 ### Added
 
 - Report `bytes_consumed` in `ParseError`s
 - Possibility to reuse config using `JsonScanner::Config`
-- Warn about `yajl`'s bug when `yajl_allow_partial_values` is set
 
 ## [0.2.0] - 2024-12-27
 

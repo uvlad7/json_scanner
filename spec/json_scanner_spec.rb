@@ -304,7 +304,7 @@ RSpec.describe JsonScanner do
         described_class.scan(*params)
       end.to raise_error(described_class::ParseError)
       expect(described_class.scan("[0, 42, 0", [[(1..-1)]], allow_partial_values: true)).to eq(
-        [[[4, 6, :number], [-1, 0, :number]]],
+        [[[4, 6, :number], [8, 9, :number]]],
       )
       expect(described_class.scan("[0, 42, true", [[(1..-1)]], allow_partial_values: true)).to eq(
         [[[4, 6, :number], [8, 12, :boolean]]],
