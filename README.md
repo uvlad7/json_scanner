@@ -54,6 +54,16 @@ JsonScanner.scan('[0, 42, 0]', [[JsonScanner::ANY_INDEX]])
 # Special matcher JsonScanner::ANY_KEY is supported for object keys
 JsonScanner.scan('{"a": 1, "b": 2}', [[JsonScanner::ANY_KEY]], with_path: true)
 # => [[[["a"], [6, 7, :number]], [["b"], [14, 15, :number]]]]
+# Regex mathers aren't supported yet, but you can simulate it using `with_path` option
+JsonScanner.scan(
+  '{"question1": 1, "answer": 42, "question2": 2}',
+  [[JsonScanner::ANY_KEY]], with_path: true,
+).map do |res|
+  res.map do |path, (begin_pos, end_pos, type)|
+    [begin_pos, end_pos, type] if path[0] =~ /\Aquestion/
+  end.compact
+end
+# => [[[14, 15, :number], [44, 45, :number]]]
 ```
 
 ## Options
@@ -63,6 +73,11 @@ JsonScanner.scan('{"a": 1, "b": 2}', [[JsonScanner::ANY_KEY]], with_path: true)
 ```ruby
 JsonScanner.scan('[0, 42, 0]', [[(1..-1)]], with_path: true)
 # => [[[[1], [4, 6, :number]], [[2], [8, 9, :number]]]]
+JsonScanner.scan('[0, 42],', [[(1..-1)]], verbose_error: true)
+# JsonScanner::ParseError (parse error: trailing garbage)
+#                                 [0, 42],
+#                      (right here) ------^
+# Note: the 'right here' pointer is wrong in case of a premature EOF error, it's a bug of the libyajl
 JsonScanner.scan('[0, 42,', [[(1..-1)]], verbose_error: true)
 # JsonScanner::ParseError (parse error: premature EOF)
 #                                        [0, 42,
@@ -124,6 +139,17 @@ JsonScanner.scan('[0, 42]', config)
 JsonScanner.scan('[0, 42]', config, with_path: true)
 # => [[[[], [0, 7, :array]]], [], [[[0], [1, 2, :number]], [[1], [4, 6, :number]]]]
 ```
+
+Options can be passed as a hash, even on Ruby 3
+```ruby
+options = { allow_trailing_garbage: true, allow_partial_values: true }
+JsonScanner.scan('[0, 42', [[1]], options) == JsonScanner.scan('[0, 42]_', [[1]], options)
+# => true
+```
+
+## Streaming mode
+
+Streaming mode isn't supported yet, as it's harder to implement and to use. I plan to add it in the future, its API is a subject to discussion. If you have suggestions, use cases, or preferences for how it should behave, I’d love to hear from you!
 
 ## Development
 
