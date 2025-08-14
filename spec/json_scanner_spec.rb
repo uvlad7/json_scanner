@@ -232,7 +232,7 @@ RSpec.describe JsonScanner do
     end.to raise_error(described_class::ParseError)
   end
 
-  context "yajl params" do
+  context "with yajl params" do
     it "supports 'allow_comments'" do
       params = ["[0, /* answer */ 42, 0]", [[(1..-1)]]]
       expect(described_class.scan(*params, allow_comments: true)).to eq(
@@ -278,6 +278,9 @@ RSpec.describe JsonScanner do
       expect do
         described_class.scan(*params)
       end.to raise_error(described_class::ParseError)
+    end
+
+    it "handles multiple top-level values correctly with 'allow_multiple_values'" do
       expect(described_class.scan("[0, 42, 0]  [0, 34]", [[]], allow_multiple_values: true)).to eq(
         [[[0, 10, :array], [12, 19, :array]]],
       )
