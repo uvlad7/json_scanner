@@ -75,15 +75,8 @@ JsonScanner.scan('[0, 42, 0]garbage', [[(1..-1)]], allow_trailing_garbage: true)
 # => [[[4, 6, :number], [8, 9, :number]]]
 JsonScanner.scan('[0, 42, 0]  [0, 34]', [[(1..-1)]], allow_multiple_values: true)
 # => [[[4, 6, :number], [8, 9, :number], [16, 18, :number]]]
-JsonScanner.scan('[0, 42, 0,', [[(1..-1)]], allow_partial_values: true)
-# => [[[4, 6, :number], [8, 9, :number]]]
-
-# This is a bug of yajl that affects only numbers
 JsonScanner.scan('[0, 42, 0', [[(1..-1)]], allow_partial_values: true)
-# => [[[4, 6, :number], [-1, 0, :number]]]
-JsonScanner.scan('[0, 42, true', [[(1..-1)]], allow_partial_values: true)
-# => [[[4, 6, :number], [8, 12, :boolean]]]
-
+# => [[[4, 6, :number], [8, 9, :number]]]
 JsonScanner.scan('{"a": 1}', [[JsonScanner::ANY_KEY]], with_path: true, symbolize_path_keys: true)
 # => [[[[:a], [6, 7, :number]]]]
 ```
