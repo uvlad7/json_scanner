@@ -35,11 +35,12 @@ end
 question_path = ["data", "question"]
 answers_path = ["data", "answers", (0..-1)]
 json_str = '{"data": {"question": "the Ultimate Question of Life, the Universe, and Everything", "answers": [42, 0, 420]}}'
-questions_pos, answers_pos = JsonScanner.scan(json_str, [question_path, answers_path])
-question_pos = questions_pos.first
+(question_pos, ), answers_pos = JsonScanner.scan(json_str, [question_path, answers_path])
 question = JSON.parse(json_str.byteslice(question_pos[0]...question_pos[1]), quirks_mode: true)
 # => "the Ultimate Question of Life, the Universe, and Everything"
-answers = answers_pos.map { |begin_pos, end_pos, _type| JSON.parse(json_str.byteslice(begin_pos...end_pos), quirks_mode: true) }
+answers = answers_pos.map do |begin_pos, end_pos, _type|
+  JSON.parse(json_str.byteslice(begin_pos...end_pos), quirks_mode: true)
+end
 # => [42, 0, 420]
 
 # Result contains byte offsets, you need to be careful when working with non-binary strings
@@ -47,8 +48,9 @@ emoji_json = '{"grin": "😁", "heart": "😍", "rofl": "🤣"}'
 begin_pos, end_pos, = JsonScanner.scan(emoji_json, [["heart"]]).first.first
 emoji_json.byteslice(begin_pos...end_pos)
 # => "\"😍\""
-# Note: You most likely don't need the `quirks_mode` option unless you are using an older version
-# of Ruby with the stdlib - or just also old - version of the json gem. In newer versions, `quirks_mode` is enabled by default.
+# Note: You most likely don't need the `quirks_mode` option unless you are using
+#  an older version of Ruby with the stdlib - or just also old - version of the json gem.
+# In newer versions, `quirks_mode` is enabled by default.
 JSON.parse(emoji_json.byteslice(begin_pos...end_pos), quirks_mode: true)
 # => "😍"
 # You can also do this
@@ -102,7 +104,10 @@ JsonScanner.scan('[0, /* answer */ 42, 0]', [[(1..-1)]], allow_comments: true)
 # => [[[17, 19, :number], [21, 22, :number]]]
 JsonScanner.scan("\"\x81\x83\"", [[]], dont_validate_strings: true)
 # => [[[0, 4, :string]]]
-JsonScanner.scan("{\"\x81\x83\": 42}", [[JsonScanner::ANY_KEY]], dont_validate_strings: true, with_path: true)
+JsonScanner.scan(
+  "{\"\x81\x83\": 42}", [[JsonScanner::ANY_KEY]],
+  dont_validate_strings: true, with_path: true.
+)
 # => [[[["\x81\x83"], [7, 9, :number]]]]
 JsonScanner.scan('[0, 42, 0]garbage', [[(1..-1)]], allow_trailing_garbage: true)
 # => [[[4, 6, :number], [8, 9, :number]]]
@@ -110,7 +115,10 @@ JsonScanner.scan('[0, 42, 0]  [0, 34]', [[(1..-1)]], allow_multiple_values: true
 # => [[[4, 6, :number], [8, 9, :number], [16, 18, :number]]]
 JsonScanner.scan('[0, 42, 0', [[(1..-1)]], allow_partial_values: true)
 # => [[[4, 6, :number], [8, 9, :number]]]
-JsonScanner.scan('{"a": 1}', [[JsonScanner::ANY_KEY]], with_path: true, symbolize_path_keys: true)
+JsonScanner.scan(
+  '{"a": 1}', [[JsonScanner::ANY_KEY]],
+  with_path: true, symbolize_path_keys: true,
+)
 # => [[[[:a], [6, 7, :number]]]]
 ```
 
@@ -119,7 +127,9 @@ JsonScanner.scan('{"a": 1}', [[JsonScanner::ANY_KEY]], with_path: true, symboliz
 Note that the standard `JSON` library supports comments, so you may want to enable it in the `JsonScanner` as well
 ```ruby
 json_str = '{"answer": {"value": 42 /* the Ultimate Question of Life, the Universe, and Everything */ }}'
-JsonScanner.scan(json_str, [["answer"]], allow_comments: true).first.map do |begin_pos, end_pos, _type|
+JsonScanner.scan(
+  json_str, [["answer"]], allow_comments: true.
+).first.map do |begin_pos, end_pos, _type|
   JSON.parse(json_str.byteslice(begin_pos...end_pos), quirks_mode: true)
 end
 # => [{"value"=>42}]
@@ -133,7 +143,9 @@ script_text = <<~'JS'
       <script>window.__APOLLO_STATE__={"ContentItem:0":{"__typename":"ContentItem","id":0, "configurationType":"NO_CONFIGURATION","replacementPartsUrl":null,"relatedCategories":[{"__ref":"Category:109450"},{"__ref":"Category:82044355"},{"__ref":"Category:109441"},{"__ref":"Category:109442"},{"__ref":"Category:109449"},{"__ref":"Category:109444"},{"__ref":"Category:82043730"}],"recommendedOptions":[]}};window.__APPVERSION__=7018;window.__CONFIG_ENV__={value: 'PRODUCTION'};</script>
 JS
 json_with_trailing_garbage = script_text[/__APOLLO_STATE__\s*=\s*({.+)/, 1]
-json_end_pos = JsonScanner.scan(json_with_trailing_garbage, [[]], allow_trailing_garbage: true).first.first[1]
+json_end_pos = JsonScanner.scan(
+  json_with_trailing_garbage, [[]], allow_trailing_garbage: true,
+).first.first[1]
 apollo_state = JSON.parse(json_with_trailing_garbage[0...json_end_pos])
 ```
 
