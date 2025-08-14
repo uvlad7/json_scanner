@@ -254,7 +254,8 @@ VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
         if (string_keys != Qundef)
         {
           // If string_keys is provided, we need to duplicate the string
-          // to avoid use-after-free issues and to add the newly created string to the string_keys array
+          // to avoid use-after-free issues and to add the newly created string to the string_keys array.
+          // In Ruby 2.2 and newer symbols can be GC-ed, so we need to duplicate them as well.
           entry = rb_str_dup(entry);
           rb_ary_push(string_keys, entry);
         }

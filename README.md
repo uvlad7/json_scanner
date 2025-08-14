@@ -56,7 +56,9 @@ JsonScanner.scan('{"a": 1, "b": 2}', [[JsonScanner::ANY_KEY]], with_path: true)
 # => [[[["a"], [6, 7, :number]], [["b"], [14, 15, :number]]]]
 ```
 
-It supports multiple options
+## Options
+
+`JsonScanner` supports multiple options
 
 ```ruby
 JsonScanner.scan('[0, 42, 0]', [[(1..-1)]], with_path: true)
@@ -81,6 +83,8 @@ JsonScanner.scan('{"a": 1}', [[JsonScanner::ANY_KEY]], with_path: true, symboliz
 # => [[[[:a], [6, 7, :number]]]]
 ```
 
+### Comments in the JSON
+
 Note that the standard `JSON` library supports comments, so you may want to enable it in the `JsonScanner` as well
 ```ruby
 json_str = '{"answer": {"value": 42 /* the Ultimate Question of Life, the Universe, and Everything */ }}'
@@ -90,7 +94,21 @@ end
 # => [{"value"=>42}]
 ```
 
-You can also create a config and reuse it
+### Find the end of a JSON string
+
+`allow_trailing_garbage` option may come in handy if you want to extract a JSON string from a JS text
+```ruby
+script_text = <<~'JS'
+      <script>window.__APOLLO_STATE__={"ContentItem:0":{"__typename":"ContentItem","id":0, "configurationType":"NO_CONFIGURATION","replacementPartsUrl":null,"relatedCategories":[{"__ref":"Category:109450"},{"__ref":"Category:82044355"},{"__ref":"Category:109441"},{"__ref":"Category:109442"},{"__ref":"Category:109449"},{"__ref":"Category:109444"},{"__ref":"Category:82043730"}],"recommendedOptions":[]}};window.__APPVERSION__=7018;window.__CONFIG_ENV__={value: 'PRODUCTION'};</script>
+JS
+json_with_trailing_garbage = script_text[/__APOLLO_STATE__\s*=\s*({.+)/, 1]
+json_end_pos = JsonScanner.scan(json_with_trailing_garbage, [[]], allow_trailing_garbage: true).first.first[1]
+apollo_state = JSON.parse(json_with_trailing_garbage[0...json_end_pos])
+```
+
+## Reuse configuration
+
+You can create a `JsonScanner::Config` instance and reuse it between `JsonScanner.scan` calls
 
 ```ruby
 require "json_scanner"
