@@ -26,7 +26,7 @@ end
 
 task default: %i[clobber compile spec rubocop]
 
-if RUBY_VERSION >= "2.5"
+if RUBY_VERSION >= "2.6"
   require "ruby_memcheck"
   require "ruby_memcheck/rspec/rake_task"
 
