@@ -20,7 +20,7 @@ jobs:
           - '2.3.8'
           - '2.5.9'
     env:
-      BUNDLE_GEMFILE: ${{ (matrix.ruby >= '2.7' && '') || (matrix.ruby >= '2.5' && 'Gemfile_ruby_2_5') || 'Gemfile_ruby_2_3' }}
+      BUNDLE_GEMFILE: ${{ (matrix.ruby >= '2.7' && 'Gemfile') || (matrix.ruby >= '2.5' && 'Gemfile_ruby_2_5') || 'Gemfile_ruby_2_3' }}
 
     steps:
     - name: Dependencies
