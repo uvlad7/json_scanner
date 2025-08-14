@@ -23,15 +23,28 @@ require "json"
 require "json_scanner"
 
 large_json = "[#{"4," * 100_000}42#{",2" * 100_000}]"
-where_is_42 = JsonScanner.scan(large_json, [[100_000]], false).first
+where_is_42 = JsonScanner.scan(large_json, [[100_000]]).first
 # => [[200001, 200003, :number]]
 where_is_42.map do |begin_pos, end_pos, _type|
   JSON.parse(large_json.byteslice(begin_pos...end_pos), quirks_mode: true)
 end
 # => [42]
 
+# You can supply multiple paths to retrieve different values; each path can match multiple results,
+# values may overlap if needed
+question_path = ["data", "question"]
+answers_path = ["data", "answers", (0..-1)]
+json_str = '{"data": {"question": "the Ultimate Question of Life, the Universe, and Everything", "answers": [42, 0, 420]}}'
+questions_pos, answers_pos = JsonScanner.scan(json_str, [question_path, answers_path])
+question_pos = questions_pos.first
+question = JSON.parse(json_str.byteslice(question_pos[0]...question_pos[1]), quirks_mode: true)
+# => "the Ultimate Question of Life, the Universe, and Everything"
+answers = answers_pos.map { |begin_pos, end_pos, _type| JSON.parse(json_str.byteslice(begin_pos...end_pos), quirks_mode: true) }
+# => [42, 0, 420]
+
+# Result contains byte offsets, you need to be careful when working with non-binary strings
 emoji_json = '{"grin": "😁", "heart": "😍", "rofl": "🤣"}'
-begin_pos, end_pos, = JsonScanner.scan(emoji_json, [["heart"]], false).first.first
+begin_pos, end_pos, = JsonScanner.scan(emoji_json, [["heart"]]).first.first
 emoji_json.byteslice(begin_pos...end_pos)
 # => "\"😍\""
 # Note: You most likely don't need the `quirks_mode` option unless you are using an older version
@@ -72,6 +85,9 @@ end
 
 ```ruby
 JsonScanner.scan('[0, 42, 0]', [[(1..-1)]], with_path: true)
+# => [[[[1], [4, 6, :number]], [[2], [8, 9, :number]]]]
+# Or as a positional argument
+JsonScanner.scan('[0, 42, 0]', [[(1..-1)]], true)
 # => [[[[1], [4, 6, :number]], [[2], [8, 9, :number]]]]
 JsonScanner.scan('[0, 42],', [[(1..-1)]], verbose_error: true)
 # JsonScanner::ParseError (parse error: trailing garbage)
