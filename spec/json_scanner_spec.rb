@@ -22,7 +22,7 @@ RSpec.describe JsonScanner do
     )
   end
 
-  it "supports symbols" do
+  it "supports 'symbolize_path_keys'" do
     expect(
       described_class.scan('{"a": {"b": 1}}', [[:a, "b"]], with_path: true),
     ).to eq([[[%w[a b], [12, 13, :number]]]])
@@ -118,6 +118,9 @@ RSpec.describe JsonScanner do
     expect do
       described_class.scan "{1}", [], verbose_error: true
     end.to raise_error described_class::ParseError, /invalid object key(?=.*\(right here\))/m
+    expect do
+      described_class.scan("[0, 42,", [[(1..-1)]], verbose_error: true)
+    end.to raise_error described_class::ParseError, /parse error: premature EOF.*\[0, 42,.*\(right here\) ------\^/m
   end
 
   it "includes bytes consumed in the exception" do
@@ -227,6 +230,83 @@ RSpec.describe JsonScanner do
     expect do
       described_class.scan(json, [[]])
     end.to raise_error(described_class::ParseError)
+  end
+
+  context "yajl params" do
+    it "supports 'allow_comments'" do
+      params = ["[0, /* answer */ 42, 0]", [[(1..-1)]]]
+      expect(described_class.scan(*params, allow_comments: true)).to eq(
+        [[[17, 19, :number], [21, 22, :number]]],
+      )
+      expect do
+        described_class.scan(*params)
+      end.to raise_error(described_class::ParseError)
+    end
+
+    it "supports 'dont_validate_strings'" do
+      params = ["\"\x81\x83\"", [[]]]
+      expect(described_class.scan(*params, dont_validate_strings: true)).to eq(
+        [[[0, 4, :string]]],
+      )
+      expect do
+        described_class.scan(*params)
+      end.to raise_error(described_class::ParseError)
+      params = ["{\"\x81\x83\": 42}", [[JsonScanner::ANY_KEY]]]
+      expect(described_class.scan(*params, dont_validate_strings: true, with_path: true)).to eq(
+        [[[["\x81\x83".dup.force_encoding(Encoding::BINARY)], [7, 9, :number]]]],
+      )
+      expect do
+        described_class.scan(*params, with_path: true)
+      end.to raise_error(described_class::ParseError)
+    end
+
+    it "supports 'allow_trailing_garbage'" do
+      params = ["[0, 42, 0]garbage", [[(1..-1)]]]
+      expect(described_class.scan(*params, allow_trailing_garbage: true)).to eq(
+        [[[4, 6, :number], [8, 9, :number]]],
+      )
+      expect do
+        described_class.scan(*params)
+      end.to raise_error(described_class::ParseError)
+    end
+
+    it "supports 'allow_multiple_values'" do
+      params = ["[0, 42, 0]  [0, 34]", [[(1..-1)]]]
+      expect(described_class.scan(*params, allow_multiple_values: true)).to eq(
+        [[[4, 6, :number], [8, 9, :number], [16, 18, :number]]],
+      )
+      expect do
+        described_class.scan(*params)
+      end.to raise_error(described_class::ParseError)
+      expect(described_class.scan("[0, 42, 0]  [0, 34]", [[]], allow_multiple_values: true)).to eq(
+        [[[0, 10, :array], [12, 19, :array]]],
+      )
+      expect(described_class.scan('{"42": 34}  [0, 34]', [[]], allow_multiple_values: true)).to eq(
+        [[[0, 10, :object], [12, 19, :array]]],
+      )
+      expect(described_class.scan('[0, 42, 0]  {"42": 34}', [[]], allow_multiple_values: true)).to eq(
+        [[[0, 10, :array], [12, 22, :object]]],
+      )
+      expect(described_class.scan('{"42": 34}  {"0": 34}', [[]], allow_multiple_values: true)).to eq(
+        [[[0, 10, :object], [12, 21, :object]]],
+      )
+    end
+
+    it "supports 'allow_partial_values'" do
+      params = ["[0, 42, 0,", [[(1..-1)]]]
+      expect(described_class.scan(*params, allow_partial_values: true)).to eq(
+        [[[4, 6, :number], [8, 9, :number]]],
+      )
+      expect do
+        described_class.scan(*params)
+      end.to raise_error(described_class::ParseError)
+      expect(described_class.scan("[0, 42, 0", [[(1..-1)]], allow_partial_values: true)).to eq(
+        [[[4, 6, :number], [-1, 0, :number]]],
+      )
+      expect(described_class.scan("[0, 42, true", [[(1..-1)]], allow_partial_values: true)).to eq(
+        [[[4, 6, :number], [8, 12, :boolean]]],
+      )
+    end
   end
 
   describe described_class::Config do

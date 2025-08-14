@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Possibility to reuse config using `JsonScanner::Config`
-
 ### Fixed
 
 - Potential problems with garbage collection of the `result` array and other `VALUE`s
@@ -19,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Report `bytes_consumed` in `ParseError`s
+- Possibility to reuse config using `JsonScanner::Config`
+- Warn about `yajl`'s bug when `yajl_allow_partial_values` is set
 
 ## [0.2.0] - 2024-12-27
 

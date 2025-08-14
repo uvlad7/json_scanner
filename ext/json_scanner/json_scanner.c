@@ -140,6 +140,7 @@ void scan_ctx_debug(scan_ctx *ctx)
       break;
     case PATH_INDEX:
       fprintf(stderr, "%ld", ctx->current_path[i].value.index);
+      break;
     }
     if (i < ctx->current_path_len - 1)
       fprintf(stderr, ", ");
@@ -193,7 +194,7 @@ VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
         break;
       case T_FIXNUM:
       case T_BIGNUM:
-        RB_NUM2LONG(entry);
+        NUM2LONG(entry);
         break;
       default:
       {
@@ -204,9 +205,9 @@ VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
           return rb_exc_new_cstr(rb_eArgError, "path elements must be strings, integers, or ranges");
         if (range_beg != any_key_sym || range_end != any_key_sym)
         {
-          if (RB_NUM2LONG(range_beg) < 0L)
+          if (NUM2LONG(range_beg) < 0L)
             return rb_exc_new_cstr(rb_eArgError, "range start must be positive");
-          end_val = RB_NUM2LONG(range_end);
+          end_val = NUM2LONG(range_end);
           if (end_val < -1L)
             return rb_exc_new_cstr(rb_eArgError, "range end must be positive or -1");
           if (end_val == -1L && open_ended)
@@ -273,8 +274,8 @@ VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
         else
         {
           paths[i].elems[j].type = MATCHER_INDEX_RANGE;
-          paths[i].elems[j].value.range.start = RB_NUM2LONG(range_beg);
-          paths[i].elems[j].value.range.end = RB_NUM2LONG(range_end);
+          paths[i].elems[j].value.range.start = NUM2LONG(range_beg);
+          paths[i].elems[j].value.range.end = NUM2LONG(range_end);
           // (value..-1) works as expected, (value...-1) is forbidden above
           if (paths[i].elems[j].value.range.end == -1L)
             paths[i].elems[j].value.range.end = LONG_MAX;
@@ -347,37 +348,38 @@ typedef enum
 } value_type;
 
 // noexcept
-VALUE create_point(scan_ctx *sctx, value_type type, size_t length, size_t curr_pos)
+VALUE create_point(scan_ctx *sctx, value_type type, size_t length)
 {
-  VALUE values[3];
-  VALUE point = rb_ary_new_capa(3);
+  VALUE values[3], point;
+  size_t curr_pos = yajl_get_bytes_consumed(sctx->handle);
+  point = rb_ary_new_capa(3);
   // noexcept
-  values[1] = RB_ULONG2NUM(curr_pos);
+  values[1] = ULL2NUM(curr_pos);
   switch (type)
   {
     // FIXME: size_t can be longer than ulong
   case null_value:
-    values[0] = RB_ULONG2NUM(curr_pos - length);
+    values[0] = LL2NUM(curr_pos - length);
     values[2] = null_sym;
     break;
   case boolean_value:
-    values[0] = RB_ULONG2NUM(curr_pos - length);
+    values[0] = LL2NUM(curr_pos - length);
     values[2] = boolean_sym;
     break;
   case number_value:
-    values[0] = RB_ULONG2NUM(curr_pos - length);
+    values[0] = LL2NUM(curr_pos - length);
     values[2] = number_sym;
     break;
   case string_value:
-    values[0] = RB_ULONG2NUM(curr_pos - length);
+    values[0] = LL2NUM(curr_pos - length);
     values[2] = string_sym;
     break;
   case object_value:
-    values[0] = RB_ULONG2NUM(sctx->starts[sctx->current_path_len]);
+    values[0] = LL2NUM(sctx->starts[sctx->current_path_len]);
     values[2] = object_sym;
     break;
   case array_value:
-    values[0] = RB_ULONG2NUM(sctx->starts[sctx->current_path_len]);
+    values[0] = LL2NUM(sctx->starts[sctx->current_path_len]);
     values[2] = array_sym;
     break;
   }
@@ -402,7 +404,7 @@ VALUE create_path(scan_ctx *sctx)
         entry = rb_str_new(sctx->current_path[i].value.key.val, sctx->current_path[i].value.key.len);
       break;
     case PATH_INDEX:
-      entry = RB_ULONG2NUM(sctx->current_path[i].value.index);
+      entry = LONG2NUM(sctx->current_path[i].value.index);
       break;
     default:
       entry = Qnil;
@@ -459,7 +461,7 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
     {
       if (point == Qundef)
       {
-        point = create_point(sctx, type, length, yajl_get_bytes_consumed(sctx->handle));
+        point = create_point(sctx, type, length);
         if (sctx->with_path)
         {
           path = create_path(sctx);
@@ -499,6 +501,7 @@ int scan_on_boolean(void *ctx, int bool_val)
 int scan_on_number(void *ctx, const char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
+  // yajl_get_bytes_consumed works incorrectly for numbers in yajl_allow_partial_values mode when partial value is a number
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
@@ -793,9 +796,27 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   {
     char *str = (char *)yajl_get_error(handle, verbose_error, (unsigned char *)json_text, json_text_len);
     err_msg = rb_utf8_str_new_cstr(str);
-    bytes_consumed = RB_ULONG2NUM(yajl_get_bytes_consumed(handle));
+    bytes_consumed = ULL2NUM(yajl_get_bytes_consumed(handle));
     yajl_free_error(handle, (unsigned char *)str);
   }
+  // // Needed when yajl_allow_partial_values is set
+  // if (ctx->current_path_len > 0)
+  // {
+  //   if (ctx->current_path_len > ctx->max_path_len)
+  //     ctx->current_path_len = ctx->max_path_len;
+  //   for (int i = ctx->current_path_len - 1; i > 0; i--)
+  //   {
+  //     switch (ctx->current_path[i].type)
+  //     {
+  //     case PATH_KEY:
+  //       scan_on_end_object(ctx);
+  //       break;
+  //     case PATH_INDEX:
+  //       scan_on_end_array(ctx);
+  //       break;
+  //     }
+  //   }
+  // }
   // callback_err = ctx->rb_err;
   if (free_ctx)
   {

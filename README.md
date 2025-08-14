@@ -56,6 +56,38 @@ JsonScanner.scan('{"a": 1, "b": 2}', [[JsonScanner::ANY_KEY]], with_path: true)
 # => [[[["a"], [6, 7, :number]], [["b"], [14, 15, :number]]]]
 ```
 
+It supports multiple options
+
+```ruby
+JsonScanner.scan('[0, 42, 0]', [[(1..-1)]], with_path: true)
+# => [[[[1], [4, 6, :number]], [[2], [8, 9, :number]]]]
+JsonScanner.scan('[0, 42,', [[(1..-1)]], verbose_error: true)
+# JsonScanner::ParseError (parse error: premature EOF)
+#                                        [0, 42,
+#                      (right here) ------^
+JsonScanner.scan('[0, /* answer */ 42, 0]', [[(1..-1)]], allow_comments: true)
+# => [[[17, 19, :number], [21, 22, :number]]]
+JsonScanner.scan("\"\x81\x83\"", [[]], dont_validate_strings: true)
+# => [[[0, 4, :string]]]
+JsonScanner.scan("{\"\x81\x83\": 42}", [[JsonScanner::ANY_KEY]], dont_validate_strings: true, with_path: true)
+# => [[[["\x81\x83"], [7, 9, :number]]]]
+JsonScanner.scan('[0, 42, 0]garbage', [[(1..-1)]], allow_trailing_garbage: true)
+# => [[[4, 6, :number], [8, 9, :number]]]
+JsonScanner.scan('[0, 42, 0]  [0, 34]', [[(1..-1)]], allow_multiple_values: true)
+# => [[[4, 6, :number], [8, 9, :number], [16, 18, :number]]]
+JsonScanner.scan('[0, 42, 0,', [[(1..-1)]], allow_partial_values: true)
+# => [[[4, 6, :number], [8, 9, :number]]]
+
+# This is a bug of yajl that affects only numbers
+JsonScanner.scan('[0, 42, 0', [[(1..-1)]], allow_partial_values: true)
+# => [[[4, 6, :number], [-1, 0, :number]]]
+JsonScanner.scan('[0, 42, true', [[(1..-1)]], allow_partial_values: true)
+# => [[[4, 6, :number], [8, 12, :boolean]]]
+
+JsonScanner.scan('{"a": 1}', [[JsonScanner::ANY_KEY]], with_path: true, symbolize_path_keys: true)
+# => [[[[:a], [6, 7, :number]]]]
+```
+
 You can also create a config and reuse it
 
 ```ruby
