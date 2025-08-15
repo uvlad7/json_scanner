@@ -35,6 +35,7 @@ if RUBY_VERSION >= "2.7"
     RubyMemcheck::RSpec::RakeTask.new(valgrind: :compile)
   end
 
+  # rubocop:disable Metrics/BlockLength
   task bench: :compile do
     require "benchmark"
     require "benchmark/ips"
@@ -48,25 +49,26 @@ if RUBY_VERSION >= "2.7"
     require "json_scanner"
 
     json_str = File.read("spec/graphql_response.json")
-    json_path = [:data, :search, :searchResult, :paginationV2, :maxPage]
+    json_path = %i[data search searchResult paginationV2 maxPage]
     json_selector = JsonScanner::Config.new([json_path])
 
     # TODO: better title display
     puts "\n\n\n"
-    title = "========= JSON string size: #{ActiveSupport::NumberHelper.number_to_human_size(json_str.bytesize)} ========="
+    json_str_size = ActiveSupport::NumberHelper.number_to_human_size(json_str.bytesize)
+    title = "========= JSON string size: #{json_str_size} ========="
     puts Rainbow(title).color(136, 17, 2)
-    page_size_with_json = -> do
+    page_size_with_json = lambda do
       JSON.parse(json_str, symbolize_names: true).dig(*json_path)
     end
-    page_size_with_oj = -> do
+    page_size_with_oj = lambda do
       Oj.load(json_str, symbolize_names: true, mode: :object).dig(*json_path)
     end
-    page_size_with_json_scanner_scan = -> do
+    page_size_with_json_scanner_scan = lambda do
       JsonScanner.scan(json_str, json_selector).first.first.then do |begin_pos, end_pos, _type|
         JSON.parse(json_str.byteslice(begin_pos...end_pos), quirks_mode: true)
       end
     end
-    page_size_with_json_scanner_parse = -> do
+    page_size_with_json_scanner_parse = lambda do
       JsonScanner.parse(json_str, json_selector, symbolize_path_keys: true).dig(*json_path)
     end
 
@@ -76,9 +78,10 @@ if RUBY_VERSION >= "2.7"
       page_size_with_json_scanner_scan.call,
       page_size_with_json_scanner_parse.call,
     ]
-    puts Rainbow("path #{json_path.map(&:inspect).join(", ")}; extracted values: #{results}").send(results.uniq.size == 1 ? :green : :red)
+    results_report = "path #{json_path.map(&:inspect).join(", ")}; extracted values: #{results}"
+    puts Rainbow(results_report).send(results.uniq.size == 1 ? :green : :red)
 
-    benchmark = ->(type, x) do
+    benchmark = lambda do |type, x|
       # not supported by 'memory'
       # x.config(:stats => :bootstrap, :confidence => 95)
 
@@ -94,6 +97,7 @@ if RUBY_VERSION >= "2.7"
     puts Rainbow("=" * title.size).color(136, 17, 2)
     puts "\n\n\n"
   end
+  # rubocop:enable Metrics/BlockLength
 end
 
 # ========= JSON string size: 463 KB =========
@@ -137,8 +141,6 @@ end
 #                 json:    1987269 allocated - 5400.19x more
 # ============================================
 
-
-
 # ========= JSON string size: 463 KB =========
 # path :data, :search, :searchResult, :paginationV2, :maxPage; extracted values: [8, 8, 8, 8]
 # ruby 3.2.2 (2023-03-30 revision e51014f9c0) [x86_64-linux]
@@ -179,8 +181,6 @@ end
 #                 json:    1401815 allocated - 3809.28x more
 #                   oj:    1440774 allocated - 3915.15x more
 # ============================================
-
-
 
 # ========= JSON string size: 463 KB =========
 # path :data, :search, :searchResult, :paginationV2, :maxPage; extracted values: [8, 8, 8, 8]
