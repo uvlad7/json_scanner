@@ -1,7 +1,7 @@
 #include "json_scanner.h"
 
 VALUE rb_mJsonScanner;
-VALUE rb_cJsonScannerConfig;
+VALUE rb_cJsonScannerSelector;
 VALUE rb_eJsonScannerParseError;
 #define BYTES_CONSUMED "bytes_consumed"
 ID rb_iv_bytes_consumed;
@@ -312,7 +312,7 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
   return Qundef; // no error
 }
 
-// resets temporary values in the config
+// resets temporary values in the selector
 static void scan_ctx_reset(scan_ctx *ctx, VALUE points_list, VALUE roots_info_list, int with_path, int symbolize_path_keys)
 {
   // TODO: reset matched_depth if implemented
@@ -622,13 +622,13 @@ static int scan_on_end_array(void *ctx)
   return true;
 }
 
-static void config_free(void *data)
+static void selector_free(void *data)
 {
   scan_ctx_free((scan_ctx *)data);
   ruby_xfree(data);
 }
 
-static size_t config_size(const void *data)
+static size_t selector_size(const void *data)
 {
   // see ObjectSpace.memsize_of
   scan_ctx *ctx = (scan_ctx *)data;
@@ -650,16 +650,16 @@ static size_t config_size(const void *data)
   return res;
 }
 
-static const rb_data_type_t config_type = {
-    .wrap_struct_name = "json_scanner_config",
+static const rb_data_type_t selector_type = {
+    .wrap_struct_name = "json_scanner_selector",
     .function = {
-        .dfree = config_free,
-        .dsize = config_size,
+        .dfree = selector_free,
+        .dsize = selector_size,
     },
     .flags = RUBY_TYPED_FREE_IMMEDIATELY,
 };
 
-static VALUE config_alloc(VALUE self)
+static VALUE selector_alloc(VALUE self)
 {
   scan_ctx *ctx = ruby_xmalloc(sizeof(scan_ctx));
   ctx->paths = NULL;
@@ -668,14 +668,14 @@ static VALUE config_alloc(VALUE self)
   ctx->max_path_len = 0;
   ctx->starts = NULL;
   scan_ctx_reset(ctx, Qundef, Qundef, false, false);
-  return TypedData_Wrap_Struct(self, &config_type, ctx);
+  return TypedData_Wrap_Struct(self, &selector_type, ctx);
 }
 
-static VALUE config_m_initialize(VALUE self, VALUE path_ary)
+static VALUE selector_m_initialize(VALUE self, VALUE path_ary)
 {
   scan_ctx *ctx;
   VALUE scan_ctx_init_err, string_keys;
-  TypedData_Get_Struct(self, scan_ctx, &config_type, ctx);
+  TypedData_Get_Struct(self, scan_ctx, &selector_type, ctx);
   string_keys = rb_ary_new();
   scan_ctx_init_err = scan_ctx_init(ctx, path_ary, string_keys);
   if (scan_ctx_init_err != Qundef)
@@ -686,11 +686,11 @@ static VALUE config_m_initialize(VALUE self, VALUE path_ary)
   return self;
 }
 
-static VALUE config_m_inspect(VALUE self)
+static VALUE selector_m_inspect(VALUE self)
 {
   scan_ctx *ctx;
   VALUE res;
-  TypedData_Get_Struct(self, scan_ctx, &config_type, ctx);
+  TypedData_Get_Struct(self, scan_ctx, &selector_type, ctx);
   res = rb_sprintf("#<%" PRIsVALUE " [", rb_class_name(CLASS_OF(self)));
   for (int i = 0; ctx->paths && i < ctx->paths_len; i++)
   {
@@ -782,10 +782,10 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
 #else
   json_text_len = RSTRING_LEN(json_str);
 #endif
-  if (rb_obj_is_kind_of(path_ary, rb_cJsonScannerConfig))
+  if (rb_obj_is_kind_of(path_ary, rb_cJsonScannerSelector))
   {
     free_ctx = false;
-    TypedData_Get_Struct(path_ary, scan_ctx, &config_type, ctx);
+    TypedData_Get_Struct(path_ary, scan_ctx, &selector_type, ctx);
   }
   else
   {
@@ -881,10 +881,10 @@ RUBY_FUNC_EXPORTED void
 Init_json_scanner(void)
 {
   rb_mJsonScanner = rb_define_module("JsonScanner");
-  rb_cJsonScannerConfig = rb_define_class_under(rb_mJsonScanner, "Config", rb_cObject);
-  rb_define_alloc_func(rb_cJsonScannerConfig, config_alloc);
-  rb_define_method(rb_cJsonScannerConfig, "initialize", config_m_initialize, 1);
-  rb_define_method(rb_cJsonScannerConfig, "inspect", config_m_inspect, 0);
+  rb_cJsonScannerSelector = rb_define_class_under(rb_mJsonScanner, "Selector", rb_cObject);
+  rb_define_alloc_func(rb_cJsonScannerSelector, selector_alloc);
+  rb_define_method(rb_cJsonScannerSelector, "initialize", selector_m_initialize, 1);
+  rb_define_method(rb_cJsonScannerSelector, "inspect", selector_m_inspect, 0);
   rb_define_const(rb_mJsonScanner, "ANY_INDEX", rb_range_new(INT2FIX(0), INT2FIX(-1), false));
   any_key_sym = rb_id2sym(rb_intern("*"));
   rb_define_const(rb_mJsonScanner, "ANY_KEY", rb_range_new(any_key_sym, any_key_sym, false));

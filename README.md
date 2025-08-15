@@ -151,24 +151,24 @@ apollo_state = JSON.parse(json_with_trailing_garbage[0...json_end_pos])
 
 ## Reuse configuration
 
-You can create a `JsonScanner::Config` instance and reuse it between `JsonScanner.scan` calls
+You can create a `JsonScanner::Selector` instance and reuse it between `JsonScanner.scan` calls
 
 ```ruby
 require "json_scanner"
 
-config = JsonScanner::Config.new([[], ["key"], [(0..-1)]])
-# => #<JsonScanner::Config [[], ['key'], [(0..9223372036854775807)]]>
-JsonScanner.scan('{"key": "42"}', config)
+selector = JsonScanner::Selector.new([[], ["key"], [(0..-1)]])
+# => #<JsonScanner::Selector [[], ['key'], [(0..9223372036854775807)]]>
+JsonScanner.scan('{"key": "42"}', selector)
 # => [[[0, 13, :object]], [[8, 12, :string]], []]
-JsonScanner.scan('{"key": "42"}', config, with_path: true)
+JsonScanner.scan('{"key": "42"}', selector, with_path: true)
 # => [[[[], [0, 13, :object]]], [[["key"], [8, 12, :string]]], []]
-JsonScanner.scan('[0, 42]', config)
+JsonScanner.scan('[0, 42]', selector)
 # => [[[0, 7, :array]], [], [[1, 2, :number], [4, 6, :number]]]
-JsonScanner.scan('[0, 42]', config, with_path: true)
+JsonScanner.scan('[0, 42]', selector, with_path: true)
 # => [[[[], [0, 7, :array]]], [], [[[0], [1, 2, :number]], [[1], [4, 6, :number]]]]
 ```
 
-Options can be passed as a hash, even on Ruby 3
+Configuration options can be passed as a hash, even on Ruby 3
 ```ruby
 options = { allow_trailing_garbage: true, allow_partial_values: true }
 JsonScanner.scan('[0, 42', [[1]], options) == JsonScanner.scan('[0, 42]_', [[1]], options)

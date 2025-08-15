@@ -50,7 +50,7 @@ if RUBY_VERSION >= "2.7"
 
     json_str = File.read("spec/graphql_response.json")
     json_path = %i[data search searchResult paginationV2 maxPage]
-    json_selector = JsonScanner::Config.new([json_path])
+    json_selector = JsonScanner::Selector.new([json_path])
 
     # TODO: better title display
     puts "\n\n\n"

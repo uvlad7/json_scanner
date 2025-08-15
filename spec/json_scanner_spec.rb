@@ -187,7 +187,7 @@ RSpec.describe JsonScanner do
     )
   end
 
-  it "allows to pass config as a hash" do
+  it "allows to pass options as a hash" do
     expect(
       described_class.scan("[1]", [[0]], { with_path: true }),
     ).to eq(
@@ -332,7 +332,7 @@ RSpec.describe JsonScanner do
     )
   end
 
-  describe described_class::Config do
+  describe described_class::Selector do
     it "saves state" do
       key = "abracadabra".dup
       conf = described_class.new [[], [key]]
@@ -366,7 +366,7 @@ RSpec.describe JsonScanner do
     it "supports inspect" do
       expect(
         described_class.new([[], ["abracadabra", JsonScanner::ANY_INDEX], [42, JsonScanner::ANY_KEY]]).inspect,
-      ).to eq("#<JsonScanner::Config [[], ['abracadabra', (0..9223372036854775807)], [42, ('*'..'*')]]>")
+      ).to eq("#<JsonScanner::Selector [[], ['abracadabra', (0..9223372036854775807)], [42, ('*'..'*')]]>")
     end
   end
 end
