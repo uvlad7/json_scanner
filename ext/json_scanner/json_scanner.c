@@ -753,7 +753,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   yajl_status stat;
   scan_ctx *ctx;
   int free_ctx = true;
-  VALUE err_msg = Qnil, bytes_consumed, result, roots_info_result = Qundef;
+  VALUE err_msg = Qnil, bytes_consumed = Qnil, result, roots_info_result = Qundef;
   // Turned out callbacks can't raise exceptions
   // VALUE callback_err;
 #if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)

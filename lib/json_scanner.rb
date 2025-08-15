@@ -13,6 +13,8 @@ module JsonScanner
   ALLOWED_OPTS = %i[verbose_error allow_comments dont_validate_strings allow_multiple_values
                     allow_trailing_garbage allow_partial_values symbolize_path_keys].freeze
   private_constant :ALLOWED_OPTS
+  STUB = :stub
+  private_constant :STUB
 
   def self.parse(json_str, config_or_path_ary, **opts)
     # with_path and with_roots_info is set here
@@ -22,22 +24,29 @@ module JsonScanner
 
     results, roots = scan(json_str, config_or_path_ary, **opts, with_path: true, with_roots_info: true)
 
+    res = process_results(json_str, results, roots, opts[:symbolize_path_keys])
+
+    opts[:allow_multiple_values] ? res : res.first
+  end
+
+  def self.process_results(json_str, results, roots, symbolize_names)
     # stubs are symbols, so they can be distinguished from real values
     res = roots.map(&:first)
     # results for different path matchers can overlap, in that case we will simply parse more than one time,
     # but there shouln't be any surprises in the behavior
     results.each do |result|
-      process_result(res, result, roots, json_str, opts[:symbolize_path_keys])
+      process_result(res, result, roots, json_str, symbolize_names)
     end
-
-    opts[:allow_multiple_values] ? res : res.first
+    res
   end
+
+  private_class_method :process_results
 
   def self.process_result(res, result, roots, json_str, symbolize_names)
     current_root_index = 0
     next_root = roots[1]
     result.each do |path, (begin_pos, end_pos, _type)|
-      if next_root && begin_pos >= next_root[1]
+      while next_root && begin_pos >= next_root[1]
         current_root_index += 1
         next_root = roots[current_root_index + 1]
       end
