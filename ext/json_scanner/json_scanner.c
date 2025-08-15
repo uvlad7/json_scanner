@@ -103,7 +103,7 @@ static inline void scan_ctx_save_bytes_consumed(scan_ctx *ctx)
   ctx->yajl_bytes_consumed += yajl_get_bytes_consumed(ctx->handle);
 }
 
-static void scan_ctx_debug(scan_ctx *ctx)
+void scan_ctx_debug(scan_ctx *ctx)
 {
   // actually might have been cleared by GC already, be careful, debug only when in valid state
   VALUE points_list_inspect = ctx->points_list == Qundef ? rb_str_new_cstr("undef") : rb_sprintf("%" PRIsVALUE, rb_inspect(ctx->points_list));
