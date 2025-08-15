@@ -5,7 +5,7 @@ VALUE rb_cJsonScannerConfig;
 VALUE rb_eJsonScannerParseError;
 #define BYTES_CONSUMED "bytes_consumed"
 ID rb_iv_bytes_consumed;
-#define SCAN_KWARGS_SIZE 8
+#define SCAN_KWARGS_SIZE 9
 ID scan_kwargs_table[SCAN_KWARGS_SIZE];
 
 VALUE null_sym;
@@ -85,6 +85,7 @@ typedef struct
   // Easier to use a Ruby array for result than convert later
   // must be supplied by the caller and RB_GC_GUARD-ed if it isn't on the stack
   VALUE points_list;
+  VALUE roots_info_list;
   // by depth
   size_t *starts;
   // VALUE rb_err;
@@ -312,7 +313,7 @@ VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
 }
 
 // resets temporary values in the config
-void scan_ctx_reset(scan_ctx *ctx, VALUE points_list, int with_path, int symbolize_path_keys)
+void scan_ctx_reset(scan_ctx *ctx, VALUE points_list, VALUE roots_info_list, int with_path, int symbolize_path_keys)
 {
   // TODO: reset matched_depth if implemented
   ctx->current_path_len = 0;
@@ -320,6 +321,7 @@ void scan_ctx_reset(scan_ctx *ctx, VALUE points_list, int with_path, int symboli
   ctx->handle = NULL;
   ctx->yajl_bytes_consumed = 0;
   ctx->points_list = points_list;
+  ctx->roots_info_list = roots_info_list;
   ctx->with_path = with_path;
   ctx->symbolize_path_keys = symbolize_path_keys;
 }
@@ -429,6 +431,16 @@ VALUE create_path(scan_ctx *sctx)
 }
 
 // noexcept
+inline void save_root_info(scan_ctx *sctx, VALUE type)
+{
+  if (sctx->roots_info_list != Qundef && sctx->current_path_len == 0)
+  {
+    VALUE values[2] = {type, ULL2NUM(scan_ctx_get_bytes_consumed(sctx))};
+    rb_ary_cat(sctx->roots_info_list, values, 2);
+  }
+}
+
+// noexcept
 void save_point(scan_ctx *sctx, value_type type, size_t length)
 {
   // TODO: Abort parsing if all paths are matched and no more mathces are possible: only trivial key/index matchers at the current level
@@ -493,6 +505,7 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
 int scan_on_null(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
+  save_root_info(sctx, null_sym);
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
@@ -504,6 +517,7 @@ int scan_on_null(void *ctx)
 int scan_on_boolean(void *ctx, int bool_val)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
+  save_root_info(sctx, boolean_sym);
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
@@ -515,6 +529,7 @@ int scan_on_boolean(void *ctx, int bool_val)
 int scan_on_number(void *ctx, const char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
+  save_root_info(sctx, number_sym);
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
@@ -526,6 +541,7 @@ int scan_on_number(void *ctx, const char *val, size_t len)
 int scan_on_string(void *ctx, const unsigned char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
+  save_root_info(sctx, string_sym);
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
@@ -537,6 +553,8 @@ int scan_on_string(void *ctx, const unsigned char *val, size_t len)
 int scan_on_start_object(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
+  // Save in the beginning in case of a partial value
+  save_root_info(sctx, object_sym);
   if (sctx->current_path_len > sctx->max_path_len)
   {
     sctx->current_path_len++;
@@ -577,6 +595,8 @@ int scan_on_end_object(void *ctx)
 int scan_on_start_array(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
+  // Save in the beginning in case of a partial value
+  save_root_info(sctx, array_sym);
   if (sctx->current_path_len > sctx->max_path_len)
   {
     sctx->current_path_len++;
@@ -648,7 +668,7 @@ VALUE config_alloc(VALUE self)
   ctx->current_path = NULL;
   ctx->max_path_len = 0;
   ctx->starts = NULL;
-  scan_ctx_reset(ctx, Qundef, false, false);
+  scan_ctx_reset(ctx, Qundef, Qundef, false, false);
   return TypedData_Wrap_Struct(self, &config_type, ctx);
 }
 
@@ -734,7 +754,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   yajl_status stat;
   scan_ctx *ctx;
   int free_ctx = true;
-  VALUE err_msg = Qnil, bytes_consumed, result;
+  VALUE err_msg = Qnil, bytes_consumed, result, roots_info_result = Qundef;
   // Turned out callbacks can't raise exceptions
   // VALUE callback_err;
 #if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)
@@ -753,6 +773,8 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
       verbose_error = RTEST(kwargs_values[1]);
     if (kwargs_values[7] != Qundef)
       symbolize_path_keys = RTEST(kwargs_values[7]);
+    if (kwargs_values[8] != Qundef)
+      roots_info_result = rb_ary_new();
   }
   rb_check_type(json_str, T_STRING);
   json_text = RSTRING_PTR(json_str);
@@ -783,7 +805,7 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   {
     rb_ary_push(result, rb_ary_new());
   }
-  scan_ctx_reset(ctx, result, with_path, symbolize_path_keys);
+  scan_ctx_reset(ctx, result, roots_info_result, with_path, symbolize_path_keys);
   // scan_ctx_debug(ctx);
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
@@ -849,6 +871,10 @@ VALUE scan(int argc, VALUE *argv, VALUE self)
   }
   // if (callback_err != Qnil)
   //   rb_exc_raise(callback_err);
+  if (roots_info_result != Qundef)
+  {
+    result = rb_ary_new_from_args(2, result, roots_info_result);
+  }
   return result;
 }
 
@@ -881,4 +907,5 @@ Init_json_scanner(void)
   scan_kwargs_table[5] = rb_intern("allow_multiple_values");
   scan_kwargs_table[6] = rb_intern("allow_partial_values");
   scan_kwargs_table[7] = rb_intern("symbolize_path_keys");
+  scan_kwargs_table[8] = rb_intern("with_roots_info");
 }
