@@ -93,17 +93,17 @@ typedef struct
   size_t yajl_bytes_consumed;
 } scan_ctx;
 
-inline size_t scan_ctx_get_bytes_consumed(scan_ctx *ctx)
+static inline size_t scan_ctx_get_bytes_consumed(scan_ctx *ctx)
 {
   return ctx->yajl_bytes_consumed + yajl_get_bytes_consumed(ctx->handle);
 }
 
-inline void scan_ctx_save_bytes_consumed(scan_ctx *ctx)
+static inline void scan_ctx_save_bytes_consumed(scan_ctx *ctx)
 {
   ctx->yajl_bytes_consumed += yajl_get_bytes_consumed(ctx->handle);
 }
 
-void scan_ctx_debug(scan_ctx *ctx)
+static void scan_ctx_debug(scan_ctx *ctx)
 {
   // actually might have been cleared by GC already, be careful, debug only when in valid state
   VALUE points_list_inspect = ctx->points_list == Qundef ? rb_str_new_cstr("undef") : rb_sprintf("%" PRIsVALUE, rb_inspect(ctx->points_list));
@@ -176,7 +176,7 @@ void scan_ctx_debug(scan_ctx *ctx)
 
 // FIXME: This will cause memory leak if ruby_xmalloc raises
 // path_ary must be RB_GC_GUARD-ed by the caller
-VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
+static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
 {
   int path_ary_len;
   paths_t *paths;
@@ -313,7 +313,7 @@ VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
 }
 
 // resets temporary values in the config
-void scan_ctx_reset(scan_ctx *ctx, VALUE points_list, VALUE roots_info_list, int with_path, int symbolize_path_keys)
+static void scan_ctx_reset(scan_ctx *ctx, VALUE points_list, VALUE roots_info_list, int with_path, int symbolize_path_keys)
 {
   // TODO: reset matched_depth if implemented
   ctx->current_path_len = 0;
@@ -326,7 +326,7 @@ void scan_ctx_reset(scan_ctx *ctx, VALUE points_list, VALUE roots_info_list, int
   ctx->symbolize_path_keys = symbolize_path_keys;
 }
 
-void scan_ctx_free(scan_ctx *ctx)
+static void scan_ctx_free(scan_ctx *ctx)
 {
   // fprintf(stderr, "scan_ctx_free\n");
   if (!ctx)
@@ -343,7 +343,7 @@ void scan_ctx_free(scan_ctx *ctx)
 }
 
 // noexcept
-inline void increment_arr_index(scan_ctx *sctx)
+static inline void increment_arr_index(scan_ctx *sctx)
 {
   // remember - any value can be root
   // TODO: Maybe make current_path_len 1 shorter and get rid of -1; need to change all compares
@@ -364,7 +364,7 @@ typedef enum
 } value_type;
 
 // noexcept
-VALUE create_point(scan_ctx *sctx, value_type type, size_t length)
+static VALUE create_point(scan_ctx *sctx, value_type type, size_t length)
 {
   VALUE values[3], point;
   size_t curr_pos = scan_ctx_get_bytes_consumed(sctx);
@@ -405,7 +405,7 @@ VALUE create_point(scan_ctx *sctx, value_type type, size_t length)
 }
 
 // noexcept
-VALUE create_path(scan_ctx *sctx)
+static VALUE create_path(scan_ctx *sctx)
 {
   VALUE path = rb_ary_new_capa(sctx->current_path_len);
   for (int i = 0; i < sctx->current_path_len; i++)
@@ -431,7 +431,7 @@ VALUE create_path(scan_ctx *sctx)
 }
 
 // noexcept
-inline void save_root_info(scan_ctx *sctx, VALUE type)
+static inline void save_root_info(scan_ctx *sctx, VALUE type)
 {
   if (sctx->roots_info_list != Qundef && sctx->current_path_len == 0)
   {
@@ -440,7 +440,7 @@ inline void save_root_info(scan_ctx *sctx, VALUE type)
 }
 
 // noexcept
-void save_point(scan_ctx *sctx, value_type type, size_t length)
+static void save_point(scan_ctx *sctx, value_type type, size_t length)
 {
   // TODO: Abort parsing if all paths are matched and no more mathces are possible: only trivial key/index matchers at the current level
   // TODO: Don't re-compare already matched prefixes; hard to invalidate, though
@@ -501,7 +501,7 @@ void save_point(scan_ctx *sctx, value_type type, size_t length)
 }
 
 // noexcept
-int scan_on_null(void *ctx)
+static int scan_on_null(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   save_root_info(sctx, null_sym);
@@ -513,7 +513,7 @@ int scan_on_null(void *ctx)
 }
 
 // noexcept
-int scan_on_boolean(void *ctx, int bool_val)
+static int scan_on_boolean(void *ctx, int bool_val)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   save_root_info(sctx, boolean_sym);
@@ -525,7 +525,7 @@ int scan_on_boolean(void *ctx, int bool_val)
 }
 
 // noexcept
-int scan_on_number(void *ctx, const char *val, size_t len)
+static int scan_on_number(void *ctx, const char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   save_root_info(sctx, number_sym);
@@ -537,7 +537,7 @@ int scan_on_number(void *ctx, const char *val, size_t len)
 }
 
 // noexcept
-int scan_on_string(void *ctx, const unsigned char *val, size_t len)
+static int scan_on_string(void *ctx, const unsigned char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   save_root_info(sctx, string_sym);
@@ -549,7 +549,7 @@ int scan_on_string(void *ctx, const unsigned char *val, size_t len)
 }
 
 // noexcept
-int scan_on_start_object(void *ctx)
+static int scan_on_start_object(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   // Save in the beginning in case of a partial value
@@ -568,7 +568,7 @@ int scan_on_start_object(void *ctx)
 }
 
 // noexcept
-int scan_on_key(void *ctx, const unsigned char *key, size_t len)
+static int scan_on_key(void *ctx, const unsigned char *key, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   if (sctx->current_path_len > sctx->max_path_len)
@@ -581,7 +581,7 @@ int scan_on_key(void *ctx, const unsigned char *key, size_t len)
 }
 
 // noexcept
-int scan_on_end_object(void *ctx)
+static int scan_on_end_object(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   sctx->current_path_len--;
@@ -591,7 +591,7 @@ int scan_on_end_object(void *ctx)
 }
 
 // noexcept
-int scan_on_start_array(void *ctx)
+static int scan_on_start_array(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   // Save in the beginning in case of a partial value
@@ -613,7 +613,7 @@ int scan_on_start_array(void *ctx)
 }
 
 // noexcept
-int scan_on_end_array(void *ctx)
+static int scan_on_end_array(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   sctx->current_path_len--;
@@ -622,13 +622,13 @@ int scan_on_end_array(void *ctx)
   return true;
 }
 
-void config_free(void *data)
+static void config_free(void *data)
 {
   scan_ctx_free((scan_ctx *)data);
   ruby_xfree(data);
 }
 
-size_t config_size(const void *data)
+static size_t config_size(const void *data)
 {
   // see ObjectSpace.memsize_of
   scan_ctx *ctx = (scan_ctx *)data;
@@ -659,7 +659,7 @@ static const rb_data_type_t config_type = {
     .flags = RUBY_TYPED_FREE_IMMEDIATELY,
 };
 
-VALUE config_alloc(VALUE self)
+static VALUE config_alloc(VALUE self)
 {
   scan_ctx *ctx = ruby_xmalloc(sizeof(scan_ctx));
   ctx->paths = NULL;
@@ -671,7 +671,7 @@ VALUE config_alloc(VALUE self)
   return TypedData_Wrap_Struct(self, &config_type, ctx);
 }
 
-VALUE config_m_initialize(VALUE self, VALUE path_ary)
+static VALUE config_m_initialize(VALUE self, VALUE path_ary)
 {
   scan_ctx *ctx;
   VALUE scan_ctx_init_err, string_keys;
@@ -686,7 +686,7 @@ VALUE config_m_initialize(VALUE self, VALUE path_ary)
   return self;
 }
 
-VALUE config_m_inspect(VALUE self)
+static VALUE config_m_inspect(VALUE self)
 {
   scan_ctx *ctx;
   VALUE res;
@@ -738,10 +738,10 @@ static yajl_callbacks scan_callbacks = {
 
 // def scan(json_str, path_arr, opts)
 // opts
-// with_path: false, verbose_error: false,
+// with_path: false, verbose_error: false, symbolize_path_keys: false, with_roots_info: false
 // the following opts converted to bool and passed to yajl_config if provided, ignored if not provided
 // allow_comments, dont_validate_strings, allow_trailing_garbage, allow_multiple_values, allow_partial_values
-VALUE scan(int argc, VALUE *argv, VALUE self)
+static VALUE scan(int argc, VALUE *argv, VALUE self)
 {
   VALUE json_str, path_ary, with_path_flag, kwargs;
   VALUE kwargs_values[SCAN_KWARGS_SIZE];
