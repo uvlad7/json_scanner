@@ -320,6 +320,18 @@ RSpec.describe JsonScanner do
     end
   end
 
+  # it "extracts values" do
+  #   json_str = 'null false {"a": 1, "b": [0,1], "c": 42}  4.2 {"b": [1,2,3]} {} 1 []'
+  #   json_selector = [["a"], ["b", 2]]
+  #   expect(
+  #     described_class.parse(json_str, json_selector, allow_multiple_values: true),
+  #   ).to eq(
+  #     [
+  #       :null, :boolean, { "a" => 1 }, :number, { "b" => [nil, nil, 3] }, :object, :number, :array,
+  #     ]
+  #   )
+  # end
+
   describe described_class::Config do
     it "saves state" do
       key = "abracadabra".dup
