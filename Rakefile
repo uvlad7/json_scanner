@@ -47,9 +47,11 @@ if RUBY_VERSION >= "2.7"
     require "json"
     require "oj"
     require "json_scanner"
+    require "simdjson"
 
     json_str = File.read("spec/graphql_response.json")
     json_path = %i[data search searchResult paginationV2 maxPage]
+    json_path_str = json_path.map { |p| p.is_a?(Symbol) ? p.to_s : p }
     json_selector = JsonScanner::Selector.new([json_path])
 
     # TODO: better title display
@@ -71,12 +73,17 @@ if RUBY_VERSION >= "2.7"
     page_size_with_json_scanner_parse = lambda do
       JsonScanner.parse(json_str, json_selector, symbolize_path_keys: true).dig(*json_path)
     end
+    # ondemand parser should be the fastest, but it's not supported by the wrapper
+    page_size_with_simdjson = lambda do
+      Simdjson.parse(json_str).dig(*json_path_str)
+    end
 
     results = [
       page_size_with_json.call,
       page_size_with_oj.call,
       page_size_with_json_scanner_scan.call,
       page_size_with_json_scanner_parse.call,
+      page_size_with_simdjson.call,
     ]
     results_report = "path #{json_path.map(&:inspect).join(", ")}; extracted values: #{results}"
     puts Rainbow(results_report).send(results.uniq.size == 1 ? :green : :red)
@@ -89,6 +96,7 @@ if RUBY_VERSION >= "2.7"
       x.report("oj", &page_size_with_oj)
       x.report("json_scanner scan", &page_size_with_json_scanner_scan)
       x.report("json_scanner parse", &page_size_with_json_scanner_parse)
+      x.report("simdjson", &page_size_with_simdjson)
       type == :memory ? x.compare!(memory: :allocated) : x.compare!
     end.curry
 

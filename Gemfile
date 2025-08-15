@@ -29,7 +29,8 @@ if RUBY_VERSION >= "2.7"
   # for ':stats => :bootstrap'
   # gem "kalibera", "~> 0.1.2"
   gem "activesupport", "~> 7.1"
-  gem "json-next", "~> 1.2"
+  # gem "json-next", "~> 1.2"
   gem "rainbow", "~> 3.1"
-  gem "rb_json5", "~> 0.3.0"
+  # gem "rb_json5", "~> 0.3.0" - extremely slow
+  gem "simdjson", "~> 1.0"
 end

@@ -34,7 +34,6 @@ GEM
     i18n (1.14.7)
       concurrent-ruby (~> 1.0)
     json (2.13.2)
-    json-next (1.2.1)
     language_server-protocol (3.17.0.3)
     logger (1.7.0)
     memory_profiler (1.0.2)
@@ -52,14 +51,11 @@ GEM
     parser (3.3.6.0)
       ast (~> 2.4.1)
       racc
-    parslet (2.0.0)
     racc (1.8.1)
     rainbow (3.1.1)
     rake (13.2.1)
     rake-compiler (1.2.8)
       rake
-    rb_json5 (0.3.0)
-      parslet (~> 2.0)
     regexp_parser (2.9.3)
     rspec (3.13.0)
       rspec-core (~> 3.13.0)
@@ -92,6 +88,7 @@ GEM
     ruby_memcheck (2.3.0)
       nokogiri
     securerandom (0.3.2)
+    simdjson (1.0.1)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
     unicode-display_width (3.1.2)
@@ -108,17 +105,16 @@ DEPENDENCIES
   benchmark-ips (~> 2.14)
   benchmark-memory (~> 0.2.0)
   json (~> 2.13)
-  json-next (~> 1.2)
   json_scanner!
   oj (~> 3.16)
   rainbow (~> 3.1)
   rake (~> 13.0)
   rake-compiler (~> 1.2)
-  rb_json5 (~> 0.3.0)
   rspec (~> 3.0)
   rubocop (~> 1.69)
   rubocop-rspec (~> 3.3)
   ruby_memcheck (~> 2.3)
+  simdjson (~> 1.0)
 
 BUNDLED WITH
    2.4.20
