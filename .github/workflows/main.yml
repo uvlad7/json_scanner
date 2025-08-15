@@ -36,5 +36,5 @@ jobs:
     - name: Run the default task
       run: bundle exec rake
     - name: Run valgrind
-      if: ${{ matrix.ruby >= '2.6' }}
+      if: ${{ matrix.ruby >= '2.7' }}
       run: bundle exec rake spec:valgrind
