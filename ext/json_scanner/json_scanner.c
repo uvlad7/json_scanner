@@ -435,8 +435,7 @@ inline void save_root_info(scan_ctx *sctx, VALUE type)
 {
   if (sctx->roots_info_list != Qundef && sctx->current_path_len == 0)
   {
-    VALUE values[2] = {type, ULL2NUM(scan_ctx_get_bytes_consumed(sctx))};
-    rb_ary_cat(sctx->roots_info_list, values, 2);
+    rb_ary_push(sctx->roots_info_list, rb_ary_new_from_args(2, type, ULL2NUM(scan_ctx_get_bytes_consumed(sctx))));
   }
 }
 

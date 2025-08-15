@@ -29,4 +29,5 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
   spec.extensions = ["ext/json_scanner/extconf.rb"]
   spec.metadata["rubygems_mfa_required"] = "true"
+  spec.add_dependency "json"
 end
