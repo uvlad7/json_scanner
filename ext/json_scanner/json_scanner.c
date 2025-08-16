@@ -132,21 +132,21 @@ static void scan_options_init(scan_options *options, VALUE kwargs)
     if (kwargs_values[0] != Qundef)
       SCAN_OPTION_SET(options, with_path, RTEST(kwargs_values[0]));
     if (kwargs_values[1] != Qundef)
-      SCAN_OPTION_SET(options, verbose_error, RTEST(kwargs_values[0]));
+      SCAN_OPTION_SET(options, verbose_error, RTEST(kwargs_values[1]));
     if (kwargs_values[2] != Qundef)
-      SCAN_OPTION_SET(options, allow_comments, RTEST(kwargs_values[0]));
+      SCAN_OPTION_SET(options, allow_comments, RTEST(kwargs_values[2]));
     if (kwargs_values[3] != Qundef)
-      SCAN_OPTION_SET(options, dont_validate_strings, RTEST(kwargs_values[0]));
+      SCAN_OPTION_SET(options, dont_validate_strings, RTEST(kwargs_values[3]));
     if (kwargs_values[4] != Qundef)
-      SCAN_OPTION_SET(options, allow_trailing_garbage, RTEST(kwargs_values[0]));
+      SCAN_OPTION_SET(options, allow_trailing_garbage, RTEST(kwargs_values[4]));
     if (kwargs_values[5] != Qundef)
-      SCAN_OPTION_SET(options, allow_multiple_values, RTEST(kwargs_values[0]));
+      SCAN_OPTION_SET(options, allow_multiple_values, RTEST(kwargs_values[5]));
     if (kwargs_values[6] != Qundef)
-      SCAN_OPTION_SET(options, allow_partial_values, RTEST(kwargs_values[0]));
+      SCAN_OPTION_SET(options, allow_partial_values, RTEST(kwargs_values[6]));
     if (kwargs_values[7] != Qundef)
-      SCAN_OPTION_SET(options, symbolize_path_keys, RTEST(kwargs_values[0]));
+      SCAN_OPTION_SET(options, symbolize_path_keys, RTEST(kwargs_values[8]));
     if (kwargs_values[8] != Qundef)
-      SCAN_OPTION_SET(options, with_roots_info, RTEST(kwargs_values[0]));
+      SCAN_OPTION_SET(options, with_roots_info, RTEST(kwargs_values[8]));
   }
 }
 
@@ -866,9 +866,9 @@ static yajl_callbacks scan_callbacks = {
 static VALUE scan(int argc, VALUE *argv, VALUE self)
 {
   VALUE json_str, path_ary, with_path_flag, kwargs;
-  VALUE kwargs_values[SCAN_KWARGS_SIZE];
+  scan_options options;
+  int with_path = false;
 
-  int with_path = false, verbose_error = false, symbolize_path_keys = false;
   char *json_text;
   size_t json_text_len;
   yajl_handle handle;
@@ -883,21 +883,14 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
 #else
   rb_scan_args(argc, argv, "21:", &json_str, &path_ary, &with_path_flag, &kwargs);
 #endif
+  rb_check_type(json_str, T_STRING);
   // rb_io_write(rb_stderr, rb_sprintf("with_path_flag: %" PRIsVALUE " \n", with_path_flag));
   with_path = RTEST(with_path_flag);
-  if (kwargs != Qnil)
-  {
-    rb_get_kwargs(kwargs, scan_kwargs_table, 0, SCAN_KWARGS_SIZE, kwargs_values);
-    if (kwargs_values[0] != Qundef)
-      with_path = RTEST(kwargs_values[0]);
-    if (kwargs_values[1] != Qundef)
-      verbose_error = RTEST(kwargs_values[1]);
-    if (kwargs_values[7] != Qundef)
-      symbolize_path_keys = RTEST(kwargs_values[7]);
-    if (kwargs_values[8] != Qundef)
-      roots_info_result = rb_ary_new();
-  }
-  rb_check_type(json_str, T_STRING);
+  scan_options_init(&options, kwargs);
+  if (SCAN_OPTION_IS_SET(&options, with_path))
+    with_path = SCAN_OPTION(&options, with_path);
+  if (SCAN_OPTION(&options, with_roots_info))
+    roots_info_result = rb_ary_new();
   json_text = RSTRING_PTR(json_str);
 #if LONG_MAX > SIZE_MAX
   json_text_len = RSTRING_LENINT(json_str);
@@ -926,23 +919,20 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   {
     rb_ary_push(result, rb_ary_new());
   }
-  scan_ctx_reset(ctx, result, roots_info_result, with_path, symbolize_path_keys);
+  scan_ctx_reset(ctx, result, roots_info_result, with_path, SCAN_OPTION(&options, symbolize_path_keys));
   // scan_ctx_debug(ctx);
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
-  if (kwargs != Qnil) // it's safe to read kwargs_values only if rb_get_kwargs was called
-  {
-    if (kwargs_values[2] != Qundef)
-      yajl_config(handle, yajl_allow_comments, RTEST(kwargs_values[2]));
-    if (kwargs_values[3] != Qundef)
-      yajl_config(handle, yajl_dont_validate_strings, RTEST(kwargs_values[3]));
-    if (kwargs_values[4] != Qundef)
-      yajl_config(handle, yajl_allow_trailing_garbage, RTEST(kwargs_values[4]));
-    if (kwargs_values[5] != Qundef)
-      yajl_config(handle, yajl_allow_multiple_values, RTEST(kwargs_values[5]));
-    if (kwargs_values[6] != Qundef)
-      yajl_config(handle, yajl_allow_partial_values, RTEST(kwargs_values[6]));
-  }
+  if (SCAN_OPTION_IS_SET(&options, allow_comments))
+    yajl_config(handle, yajl_allow_comments, SCAN_OPTION(&options, allow_comments));
+  if (SCAN_OPTION_IS_SET(&options, dont_validate_strings))
+    yajl_config(handle, yajl_dont_validate_strings, SCAN_OPTION(&options, dont_validate_strings));
+  if (SCAN_OPTION_IS_SET(&options, allow_trailing_garbage))
+    yajl_config(handle, yajl_allow_trailing_garbage, SCAN_OPTION(&options, allow_trailing_garbage));
+  if (SCAN_OPTION_IS_SET(&options, allow_multiple_values))
+    yajl_config(handle, yajl_allow_multiple_values, SCAN_OPTION(&options, allow_multiple_values));
+  if (SCAN_OPTION_IS_SET(&options, allow_partial_values))
+    yajl_config(handle, yajl_allow_partial_values, SCAN_OPTION(&options, allow_partial_values));
   ctx->handle = handle;
   stat = yajl_parse(handle, (unsigned char *)json_text, json_text_len);
   if (stat == yajl_status_ok)
@@ -953,7 +943,7 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
 
   if (stat != yajl_status_ok)
   {
-    char *str = (char *)yajl_get_error(handle, verbose_error, (unsigned char *)json_text, json_text_len);
+    char *str = (char *)yajl_get_error(handle, SCAN_OPTION(&options, verbose_error), (unsigned char *)json_text, json_text_len);
     err_msg = rb_utf8_str_new_cstr(str);
     bytes_consumed = ULL2NUM(scan_ctx_get_bytes_consumed(ctx));
     yajl_free_error(handle, (unsigned char *)str);
