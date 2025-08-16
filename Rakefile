@@ -93,16 +93,18 @@ if RUBY_VERSION >= "2.7"
     end
 
     yajl_ffi_parser = Yajl::FFI::Parser.new
-    yajl_ffi_parser.start_document { }
-    yajl_ffi_parser.end_document { }
-    yajl_ffi_parser.start_object { }
-    yajl_ffi_parser.end_object { }
-    yajl_ffi_parser.start_array { }
-    yajl_ffi_parser.end_array { }
+    # rubocop:disable Lint/EmptyBlock
+    yajl_ffi_parser.start_document {}
+    yajl_ffi_parser.end_document {}
+    yajl_ffi_parser.start_object {}
+    yajl_ffi_parser.end_object {}
+    yajl_ffi_parser.start_array {}
+    yajl_ffi_parser.end_array {}
     yajl_ffi_parser.key { |_k| }
     yajl_ffi_parser.value { |_v| }
+    # rubocop:enable Lint/EmptyBlock
     Yajl::FFI.config(yajl_ffi_parser.instance_variable_get(:@handle), :allow_multiple_values, :int, 1)
-    # Clone of `<<`, but won't  call complete_parse
+    # Clone of `<<`, but won't call complete_parse
     def yajl_ffi_parser.push(data)
       result = Yajl::FFI.parse(@handle, data, data.bytesize)
       error(data) if result == :error
