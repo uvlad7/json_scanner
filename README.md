@@ -218,24 +218,39 @@ The gem is available as open source under the terms of the [MIT License](https:/
 
 ```shell
 ========= JSON string size: 463 KB =========
-path :data, :search, :searchResult, :paginationV2, :maxPage; extracted values: [8, 8, 8, 8]
+path :data, :search, :searchResult, :paginationV2, :maxPage; extracted values: [8, 8, 8, 8, 8, 8, 8, 8]
 ruby 2.7.8p225 (2023-03-30 revision 1f4d455848) [x86_64-linux]
 Warming up --------------------------------------
-                json     9.000 i/100ms
-                  oj    18.000 i/100ms
-   json_scanner scan    70.000 i/100ms
-  json_scanner parse    74.000 i/100ms
+                json     8.000 i/100ms
+                  oj    16.000 i/100ms
+   json_scanner scan    66.000 i/100ms
+  json_scanner parse    44.000 i/100ms
+            simdjson    12.000 i/100ms
+           yajl-ruby    12.000 i/100ms
+                yaji     1.000 i/100ms
+            ffi-yajl     9.000 i/100ms
+     yajl-ffi (stub)     1.000 i/100ms
 Calculating -------------------------------------
-                json     93.566 (± 2.1%) i/s   (10.69 ms/i) -    468.000 in   5.004734s
-                  oj    188.098 (± 5.3%) i/s    (5.32 ms/i) -    954.000 in   5.088179s
-   json_scanner scan    740.777 (± 3.1%) i/s    (1.35 ms/i) -      3.710k in   5.013415s
-  json_scanner parse    738.147 (± 2.2%) i/s    (1.35 ms/i) -      3.700k in   5.014863s
+                json     89.542 (±20.1%) i/s   (11.17 ms/i) -    432.000 in   5.083579s
+                  oj    155.916 (±29.5%) i/s    (6.41 ms/i) -    688.000 in   5.033501s
+   json_scanner scan    661.426 (±10.7%) i/s    (1.51 ms/i) -      3.300k in   5.059478s
+  json_scanner parse    649.443 (±12.0%) i/s    (1.54 ms/i) -      3.212k in   5.045073s
+            simdjson    156.793 (±11.5%) i/s    (6.38 ms/i) -    780.000 in   5.053348s
+           yajl-ruby    120.428 (± 5.0%) i/s    (8.30 ms/i) -    612.000 in   5.096770s
+                yaji     18.486 (± 0.0%) i/s   (54.09 ms/i) -     93.000 in   5.034553s
+            ffi-yajl    126.109 (± 9.5%) i/s    (7.93 ms/i) -    630.000 in   5.059638s
+     yajl-ffi (stub)     13.726 (±21.9%) i/s   (72.85 ms/i) -     66.000 in   5.028068s
 
 Comparison:
-   json_scanner scan:      740.8 i/s
-  json_scanner parse:      738.1 i/s - same-ish: difference falls within error
-                  oj:      188.1 i/s - 3.94x  slower
-                json:       93.6 i/s - 7.92x  slower
+   json_scanner scan:      661.4 i/s
+  json_scanner parse:      649.4 i/s - same-ish: difference falls within error
+            simdjson:      156.8 i/s - 4.22x  slower
+                  oj:      155.9 i/s - 4.24x  slower
+            ffi-yajl:      126.1 i/s - 5.24x  slower
+           yajl-ruby:      120.4 i/s - 5.49x  slower
+                json:       89.5 i/s - 7.39x  slower
+                yaji:       18.5 i/s - 35.78x  slower
+     yajl-ffi (stub):       13.7 i/s - 48.19x  slower
 
 Calculating -------------------------------------
                 json     1.987M memsize (     0.000  retained)
@@ -250,33 +265,69 @@ Calculating -------------------------------------
   json_scanner parse     2.240k memsize (   528.000  retained)
                         23.000  objects (     9.000  retained)
                          1.000  strings (     0.000  retained)
+            simdjson     2.203M memsize (     0.000  retained)
+                        30.038k objects (     0.000  retained)
+                        50.000  strings (     0.000  retained)
+           yajl-ruby     1.379M memsize (     0.000  retained)
+                         9.666k objects (     0.000  retained)
+                        50.000  strings (     0.000  retained)
+                yaji     8.593M memsize (     0.000  retained)
+                       138.847k objects (     0.000  retained)
+                        50.000  strings (     0.000  retained)
+            ffi-yajl     1.380M memsize (   168.000  retained)
+                         9.671k objects (     1.000  retained)
+                        50.000  strings (     0.000  retained)
+     yajl-ffi (stub)   233.913M memsize (   208.000  retained)
+                        98.406k objects (     2.000  retained)
+                        50.000  strings (     1.000  retained)
 
 Comparison:
    json_scanner scan:        368 allocated
   json_scanner parse:       2240 allocated - 6.09x more
                   oj:    1379274 allocated - 3748.03x more
+           yajl-ruby:    1379442 allocated - 3748.48x more
+            ffi-yajl:    1380058 allocated - 3750.16x more
                 json:    1987269 allocated - 5400.19x more
+            simdjson:    2202607 allocated - 5985.35x more
+                yaji:    8592765 allocated - 23349.90x more
+     yajl-ffi (stub):  233913419 allocated - 635634.29x more
 ============================================
 
+
 ========= JSON string size: 463 KB =========
-path :data, :search, :searchResult, :paginationV2, :maxPage; extracted values: [8, 8, 8, 8]
+path :data, :search, :searchResult, :paginationV2, :maxPage; extracted values: [8, 8, 8, 8, 8, 8, 8, 8]
 ruby 3.2.2 (2023-03-30 revision e51014f9c0) [x86_64-linux]
 Warming up --------------------------------------
                 json    15.000 i/100ms
                   oj    17.000 i/100ms
-   json_scanner scan    74.000 i/100ms
-  json_scanner parse    73.000 i/100ms
+   json_scanner scan    66.000 i/100ms
+  json_scanner parse    74.000 i/100ms
+            simdjson     4.000 i/100ms
+           yajl-ruby    11.000 i/100ms
+                yaji     2.000 i/100ms
+            ffi-yajl     9.000 i/100ms
+     yajl-ffi (stub)     1.000 i/100ms
 Calculating -------------------------------------
-                json    156.015 (± 4.5%) i/s    (6.41 ms/i) -    780.000 in   5.009398s
-                  oj    146.395 (±19.1%) i/s    (6.83 ms/i) -    714.000 in   5.085658s
-   json_scanner scan    513.451 (±29.4%) i/s    (1.95 ms/i) -      2.368k in   5.046488s
-  json_scanner parse    640.176 (±16.2%) i/s    (1.56 ms/i) -      3.139k in   5.067958s
+                json    157.797 (± 4.4%) i/s    (6.34 ms/i) -    795.000 in   5.050469s
+                  oj    163.243 (± 7.4%) i/s    (6.13 ms/i) -    816.000 in   5.027023s
+   json_scanner scan    630.410 (± 7.6%) i/s    (1.59 ms/i) -      3.168k in   5.060172s
+  json_scanner parse    684.963 (± 3.1%) i/s    (1.46 ms/i) -      3.478k in   5.082918s
+            simdjson     44.316 (± 0.0%) i/s   (22.57 ms/i) -    224.000 in   5.055158s
+           yajl-ruby    109.968 (± 1.8%) i/s    (9.09 ms/i) -    550.000 in   5.002486s
+                yaji     27.216 (± 3.7%) i/s   (36.74 ms/i) -    138.000 in   5.073578s
+            ffi-yajl    115.785 (± 4.3%) i/s    (8.64 ms/i) -    585.000 in   5.064551s
+     yajl-ffi (stub)     14.820 (±13.5%) i/s   (67.48 ms/i) -     73.000 in   5.007391s
 
 Comparison:
-  json_scanner parse:      640.2 i/s
-   json_scanner scan:      513.5 i/s - same-ish: difference falls within error
-                json:      156.0 i/s - 4.10x  slower
-                  oj:      146.4 i/s - 4.37x  slower
+  json_scanner parse:      685.0 i/s
+   json_scanner scan:      630.4 i/s - same-ish: difference falls within error
+                  oj:      163.2 i/s - 4.20x  slower
+                json:      157.8 i/s - 4.34x  slower
+            ffi-yajl:      115.8 i/s - 5.92x  slower
+           yajl-ruby:      110.0 i/s - 6.23x  slower
+            simdjson:       44.3 i/s - 15.46x  slower
+                yaji:       27.2 i/s - 25.17x  slower
+     yajl-ffi (stub):       14.8 i/s - 46.22x  slower
 
 Calculating -------------------------------------
                 json     1.402M memsize (     0.000  retained)
@@ -291,33 +342,69 @@ Calculating -------------------------------------
   json_scanner parse     2.072k memsize (   360.000  retained)
                         22.000  objects (     8.000  retained)
                          1.000  strings (     0.000  retained)
+            simdjson     2.379M memsize (     0.000  retained)
+                        30.037k objects (     0.000  retained)
+                        50.000  strings (     0.000  retained)
+           yajl-ruby     1.441M memsize (     0.000  retained)
+                         9.666k objects (     0.000  retained)
+                        50.000  strings (     0.000  retained)
+                yaji    10.230M memsize (     0.000  retained)
+                       138.847k objects (     0.000  retained)
+                        50.000  strings (     0.000  retained)
+            ffi-yajl     1.441M memsize (     0.000  retained)
+                         9.671k objects (     0.000  retained)
+                        50.000  strings (     0.000  retained)
+     yajl-ffi (stub)   234.105M memsize (   208.000  retained)
+                        98.509k objects (     2.000  retained)
+                        50.000  strings (     1.000  retained)
 
 Comparison:
    json_scanner scan:        368 allocated
   json_scanner parse:       2072 allocated - 5.63x more
                 json:    1401815 allocated - 3809.28x more
                   oj:    1440774 allocated - 3915.15x more
+           yajl-ruby:    1440814 allocated - 3915.26x more
+            ffi-yajl:    1441310 allocated - 3916.60x more
+            simdjson:    2378766 allocated - 6464.04x more
+                yaji:   10230271 allocated - 27799.65x more
+     yajl-ffi (stub):  234104932 allocated - 636154.71x more
 ============================================
 
+
 ========= JSON string size: 463 KB =========
-path :data, :search, :searchResult, :paginationV2, :maxPage; extracted values: [8, 8, 8, 8]
+path :data, :search, :searchResult, :paginationV2, :maxPage; extracted values: [8, 8, 8, 8, 8, 8, 8, 8]
 ruby 3.4.2 (2025-02-15 revision d2930f8e7a) +PRISM [x86_64-linux]
 Warming up --------------------------------------
                 json    11.000 i/100ms
-                  oj    12.000 i/100ms
-   json_scanner scan    68.000 i/100ms
-  json_scanner parse    75.000 i/100ms
+                  oj    14.000 i/100ms
+   json_scanner scan    70.000 i/100ms
+  json_scanner parse    69.000 i/100ms
+            simdjson     4.000 i/100ms
+           yajl-ruby     9.000 i/100ms
+                yaji     2.000 i/100ms
+            ffi-yajl     9.000 i/100ms
+     yajl-ffi (stub)     1.000 i/100ms
 Calculating -------------------------------------
-                json    153.145 (± 9.1%) i/s    (6.53 ms/i) -    759.000 in   5.003997s
-                  oj    161.947 (± 3.7%) i/s    (6.17 ms/i) -    816.000 in   5.045710s
-   json_scanner scan    733.917 (± 1.9%) i/s    (1.36 ms/i) -      3.672k in   5.005395s
-  json_scanner parse    719.953 (± 2.1%) i/s    (1.39 ms/i) -      3.600k in   5.002508s
+                json    130.231 (± 3.8%) i/s    (7.68 ms/i) -    660.000 in   5.076796s
+                  oj    145.239 (± 6.9%) i/s    (6.89 ms/i) -    728.000 in   5.047231s
+   json_scanner scan    626.381 (± 9.3%) i/s    (1.60 ms/i) -      3.150k in   5.079929s
+  json_scanner parse    667.710 (± 4.5%) i/s    (1.50 ms/i) -      3.381k in   5.076284s
+            simdjson     37.137 (±10.8%) i/s   (26.93 ms/i) -    184.000 in   5.025192s
+           yajl-ruby     98.301 (± 6.1%) i/s   (10.17 ms/i) -    495.000 in   5.054221s
+                yaji     25.146 (± 4.0%) i/s   (39.77 ms/i) -    126.000 in   5.026175s
+            ffi-yajl    105.936 (± 3.8%) i/s    (9.44 ms/i) -    531.000 in   5.022619s
+     yajl-ffi (stub)     13.615 (±14.7%) i/s   (73.45 ms/i) -     67.000 in   5.007215s
 
 Comparison:
-   json_scanner scan:      733.9 i/s
-  json_scanner parse:      720.0 i/s - same-ish: difference falls within error
-                  oj:      161.9 i/s - 4.53x  slower
-                json:      153.1 i/s - 4.79x  slower
+  json_scanner parse:      667.7 i/s
+   json_scanner scan:      626.4 i/s - same-ish: difference falls within error
+                  oj:      145.2 i/s - 4.60x  slower
+                json:      130.2 i/s - 5.13x  slower
+            ffi-yajl:      105.9 i/s - 6.30x  slower
+           yajl-ruby:       98.3 i/s - 6.79x  slower
+            simdjson:       37.1 i/s - 17.98x  slower
+                yaji:       25.1 i/s - 26.55x  slower
+     yajl-ffi (stub):       13.6 i/s - 49.04x  slower
 
 Calculating -------------------------------------
                 json     1.377M memsize (     0.000  retained)
@@ -332,11 +419,31 @@ Calculating -------------------------------------
   json_scanner parse     2.000k memsize (   360.000  retained)
                         22.000  objects (     8.000  retained)
                          1.000  strings (     0.000  retained)
+            simdjson     2.301M memsize (     0.000  retained)
+                        30.037k objects (     0.000  retained)
+                        50.000  strings (     0.000  retained)
+           yajl-ruby     1.364M memsize (     0.000  retained)
+                         9.666k objects (     0.000  retained)
+                        50.000  strings (     0.000  retained)
+                yaji    10.230M memsize (     0.000  retained)
+                       138.847k objects (     0.000  retained)
+                        50.000  strings (     0.000  retained)
+            ffi-yajl     1.364M memsize (    40.000  retained)
+                         9.671k objects (     1.000  retained)
+                        50.000  strings (     1.000  retained)
+     yajl-ffi (stub)   234.105M memsize (   208.000  retained)
+                        98.509k objects (     2.000  retained)
+                        50.000  strings (     1.000  retained)
 
 Comparison:
    json_scanner scan:        360 allocated
   json_scanner parse:       2000 allocated - 5.56x more
                   oj:    1363382 allocated - 3787.17x more
+           yajl-ruby:    1363550 allocated - 3787.64x more
+            ffi-yajl:    1364158 allocated - 3789.33x more
                 json:    1376519 allocated - 3823.66x more
+            simdjson:    2301382 allocated - 6392.73x more
+                yaji:   10230263 allocated - 28417.40x more
+     yajl-ffi (stub):  234104932 allocated - 650291.48x more
 ============================================
 ```

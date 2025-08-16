@@ -33,4 +33,8 @@ if RUBY_VERSION >= "2.7"
   gem "rainbow", "~> 3.1"
   # gem "rb_json5", "~> 0.3.0" - extremely slow
   gem "simdjson", "~> 1.0"
+  gem "yajl-ruby", "~> 1.4"
+  gem "yaji", "~> 0.3.6"
+  gem "ffi-yajl", "~> 3.0"
+  gem "yajl-ffi", "~> 1.0"
 end

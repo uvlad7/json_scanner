@@ -31,10 +31,15 @@ GEM
     connection_pool (2.5.3)
     diff-lcs (1.5.1)
     drb (2.2.3)
+    ffi (1.17.2-arm64-darwin)
+    ffi (1.17.2-x86_64-linux-gnu)
+    ffi-yajl (3.0.0)
+      libyajl2 (>= 1.2)
     i18n (1.14.7)
       concurrent-ruby (~> 1.0)
     json (2.13.2)
     language_server-protocol (3.17.0.3)
+    libyajl2 (2.1.0)
     logger (1.7.0)
     memory_profiler (1.0.2)
     minitest (5.25.5)
@@ -94,6 +99,10 @@ GEM
     unicode-display_width (3.1.2)
       unicode-emoji (~> 4.0, >= 4.0.4)
     unicode-emoji (4.0.4)
+    yaji (0.3.6)
+    yajl-ffi (1.0.0)
+      ffi (~> 1.16)
+    yajl-ruby (1.4.3)
 
 PLATFORMS
   arm64-darwin-23
@@ -104,6 +113,7 @@ DEPENDENCIES
   benchmark (~> 0.4.1)
   benchmark-ips (~> 2.14)
   benchmark-memory (~> 0.2.0)
+  ffi-yajl (~> 3.0)
   json (~> 2.13)
   json_scanner!
   oj (~> 3.16)
@@ -115,6 +125,9 @@ DEPENDENCIES
   rubocop-rspec (~> 3.3)
   ruby_memcheck (~> 2.3)
   simdjson (~> 1.0)
+  yaji (~> 0.3.6)
+  yajl-ffi (~> 1.0)
+  yajl-ruby (~> 1.4)
 
 BUNDLED WITH
    2.4.20

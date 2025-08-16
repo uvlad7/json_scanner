@@ -48,11 +48,16 @@ if RUBY_VERSION >= "2.7"
     require "oj"
     require "json_scanner"
     require "simdjson"
+    require "yajl"
+    require "yaji"
+    require "yajl/ffi"
+    require "ffi_yajl"
 
     json_str = File.read("spec/graphql_response.json")
     json_path = %i[data search searchResult paginationV2 maxPage]
     json_path_str = json_path.map { |p| p.is_a?(Symbol) ? p.to_s : p }
     json_selector = JsonScanner::Selector.new([json_path])
+    yaji_path = "/#{json_path.map(&:to_s).join("/")}"
 
     # TODO: better title display
     puts "\n\n\n"
@@ -77,6 +82,37 @@ if RUBY_VERSION >= "2.7"
     page_size_with_simdjson = lambda do
       Simdjson.parse(json_str).dig(*json_path_str)
     end
+    page_size_with_yajl_ruby = lambda do
+      Yajl::Parser.parse(json_str, symbolize_names: true).dig(*json_path)
+    end
+    page_size_with_yaji = lambda do
+      YAJI::Parser.new(json_str).each(yaji_path).first
+    end
+    page_size_with_ffi_yajl = lambda do
+      FFI_Yajl::Parser.parse(json_str, symbolize_names: true).dig(*json_path)
+    end
+
+    yajl_ffi_parser = Yajl::FFI::Parser.new
+    yajl_ffi_parser.start_document { }
+    yajl_ffi_parser.end_document { }
+    yajl_ffi_parser.start_object { }
+    yajl_ffi_parser.end_object { }
+    yajl_ffi_parser.start_array { }
+    yajl_ffi_parser.end_array { }
+    yajl_ffi_parser.key { |_k| }
+    yajl_ffi_parser.value { |_v| }
+    Yajl::FFI.config(yajl_ffi_parser.instance_variable_get(:@handle), :allow_multiple_values, :int, 1)
+    # Clone of `<<`, but won't  call complete_parse
+    def yajl_ffi_parser.push(data)
+      result = Yajl::FFI.parse(@handle, data, data.bytesize)
+      error(data) if result == :error
+    end
+    stub_page_size_with_yajl_ffi = lambda do
+      # I don't want to reinplement the logic, so callbacks here are empty, it's still
+      # slower and consumes more memory.
+      # And I even allow mulltiple values not to recreate the parser multiple times.
+      yajl_ffi_parser.push(json_str)
+    end
 
     results = [
       page_size_with_json.call,
@@ -84,6 +120,9 @@ if RUBY_VERSION >= "2.7"
       page_size_with_json_scanner_scan.call,
       page_size_with_json_scanner_parse.call,
       page_size_with_simdjson.call,
+      page_size_with_yajl_ruby.call,
+      page_size_with_yaji.call,
+      page_size_with_ffi_yajl.call,
     ]
     results_report = "path #{json_path.map(&:inspect).join(", ")}; extracted values: #{results}"
     puts Rainbow(results_report).send(results.uniq.size == 1 ? :green : :red)
@@ -97,6 +136,10 @@ if RUBY_VERSION >= "2.7"
       x.report("json_scanner scan", &page_size_with_json_scanner_scan)
       x.report("json_scanner parse", &page_size_with_json_scanner_parse)
       x.report("simdjson", &page_size_with_simdjson)
+      x.report("yajl-ruby", &page_size_with_yajl_ruby)
+      x.report("yaji", &page_size_with_yaji)
+      x.report("ffi-yajl", &page_size_with_ffi_yajl)
+      x.report("yajl-ffi (stub)", &stub_page_size_with_yajl_ffi)
       type == :memory ? x.compare!(memory: :allocated) : x.compare!
     end.curry
 
