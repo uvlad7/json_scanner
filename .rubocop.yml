@@ -39,3 +39,6 @@ Style/TrailingCommaInArrayLiteral:
 
 Style/TrailingCommaInHashLiteral:
   EnforcedStyleForMultiline: consistent_comma
+
+Lint/RedundantCopDisableDirective:
+  Enabled: false
