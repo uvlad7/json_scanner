@@ -865,7 +865,7 @@ static yajl_callbacks scan_callbacks = {
 // allow_comments, dont_validate_strings, allow_trailing_garbage, allow_multiple_values, allow_partial_values
 static VALUE scan(int argc, VALUE *argv, VALUE self)
 {
-  VALUE json_str, path_ary, with_path_flag, kwargs;
+  VALUE json_str, path_ary, with_path_flag, rb_options;
   scan_options options;
   int with_path = false;
 
@@ -879,14 +879,23 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   // Turned out callbacks can't raise exceptions
   // VALUE callback_err;
 #if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)
-  rb_scan_args_kw(RB_SCAN_ARGS_LAST_HASH_KEYWORDS, argc, argv, "21:", &json_str, &path_ary, &with_path_flag, &kwargs);
+  rb_scan_args_kw(RB_SCAN_ARGS_LAST_HASH_KEYWORDS, argc, argv, "21:", &json_str, &path_ary, &with_path_flag, &rb_options);
 #else
-  rb_scan_args(argc, argv, "21:", &json_str, &path_ary, &with_path_flag, &kwargs);
+  rb_scan_args(argc, argv, "21:", &json_str, &path_ary, &with_path_flag, &rb_options);
 #endif
   rb_check_type(json_str, T_STRING);
   // rb_io_write(rb_stderr, rb_sprintf("with_path_flag: %" PRIsVALUE " \n", with_path_flag));
   with_path = RTEST(with_path_flag);
-  scan_options_init(&options, kwargs);
+  if (rb_obj_is_kind_of(rb_options, rb_cJsonScannerOptions))
+  {
+    scan_options *ptr;
+    TypedData_Get_Struct(rb_options, scan_options, &options_type, ptr);
+    options = *ptr;
+  }
+  else
+  {
+    scan_options_init(&options, rb_options);
+  }
   if (SCAN_OPTION_IS_SET(&options, with_path))
     with_path = SCAN_OPTION(&options, with_path);
   if (SCAN_OPTION(&options, with_roots_info))
