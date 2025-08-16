@@ -175,6 +175,30 @@ JsonScanner.scan('[0, 42', [[1]], options) == JsonScanner.scan('[0, 42]_', [[1]]
 # => true
 ```
 
+Alternatively, you can use `JsonScanner::Options` not to parse a hash every time
+```ruby
+require 'benchmark'
+
+options = { allow_trailing_garbage: true, allow_partial_values: true }
+scanner_options = JsonScanner::Options.new(options)
+# => #<JsonScanner::Options {allow_trailing_garbage: true, allow_partial_values: true}>
+json_str = '{"question1": 1, "answer": 42, "question2": 2}'
+selector = JsonScanner::Selector.new([['answer']])
+Benchmark.bmbm do |x|
+  x.report("options") { 1_000_000.times { JsonScanner.scan(json_str, selector, options) } }
+  x.report("scanner_options") { 1_000_000.times { JsonScanner.scan(json_str, selector, scanner_options) } }
+end
+# produces the following on Ruby 3.2.2
+# Rehearsal ---------------------------------------------------
+# options           0.957705   0.002293   0.959998 (  0.960228)
+# scanner_options   0.903800   0.003121   0.906921 (  0.906956)
+# ------------------------------------------ total: 1.866919sec
+
+#                       user     system      total        real
+# options           0.929433   0.001102   0.930535 (  0.931687)
+# scanner_options   0.907289   0.005055   0.912344 (  0.912379)
+```
+
 ## Streaming mode
 
 Streaming mode isn't supported yet, as it's harder to implement and to use. I plan to add it in the future, its API is a subject to discussion. If you have suggestions, use cases, or preferences for how it should behave, I’d love to hear from you!
