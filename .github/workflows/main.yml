@@ -34,6 +34,7 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
+        rubygems: ${{ (matrix.ruby >= '2.7' && '3.4.20') || '3.2.3' }}
     - name: Run the default task
       run: bundle exec rake
     - name: Run valgrind
