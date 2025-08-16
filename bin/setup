@@ -4,7 +4,9 @@
 
 argv = %w[bundle install]
 
-if RUBY_VERSION < "2.7"
+if RUBY_VERSION >= "3.4"
+  argv.push("--gemfile", "Gemfile_ruby_3_4")
+elsif RUBY_VERSION < "2.7"
   argv.push("--gemfile", RUBY_VERSION >= "2.5" ? "Gemfile_ruby_2_5" : "Gemfile_ruby_2_3")
 end
 

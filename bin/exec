@@ -1,0 +1,13 @@
+#!/usr/bin/env ruby
+
+ruby_ver = ARGV.shift
+
+gemfile = if ruby_ver >= "3.4"
+    "Gemfile_ruby_3_4"
+  elsif ruby_ver < "2.7"
+    ruby_ver >= "2.5" ? "Gemfile_ruby_2_5" : "Gemfile_ruby_2_3"
+  else
+    "Gemfile"
+  end
+
+exec({ "BUNDLE_GEMFILE" => gemfile }, "mise", "exec", "ruby@#{ruby_ver}", "--", *ARGV)
