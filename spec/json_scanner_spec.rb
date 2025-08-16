@@ -159,32 +159,6 @@ RSpec.describe JsonScanner do
       ],
     ]
     expect(described_class.scan(*params, with_path: true)).to eq(with_path_expected_res)
-    expect(described_class.scan(*params, true)).to eq(with_path_expected_res)
-    expect(
-      described_class.scan(*params, false, with_path: true),
-    ).to eq(with_path_expected_res)
-  end
-
-  it "ignores reqular flag if kwarg is given" do
-    expect(
-      described_class.scan(
-        "[[1,2],[3,4]]",
-        [
-          [described_class::ANY_INDEX],
-          [described_class::ANY_INDEX, described_class::ANY_INDEX],
-        ],
-        true, with_path: false,
-      ),
-    ).to eq(
-      [
-        # result for first matcher, each element 3-element array start,end,type
-        [[1, 6, :array], [7, 12, :array]],
-        [
-          [2, 3, :number], [4, 5, :number],
-          [8, 9, :number], [10, 11, :number],
-        ],
-      ],
-    )
   end
 
   it "allows to pass options as a hash" do

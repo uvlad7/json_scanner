@@ -88,9 +88,6 @@ end
 ```ruby
 JsonScanner.scan('[0, 42, 0]', [[(1..-1)]], with_path: true)
 # => [[[[1], [4, 6, :number]], [[2], [8, 9, :number]]]]
-# Or as a positional argument
-JsonScanner.scan('[0, 42, 0]', [[(1..-1)]], true)
-# => [[[[1], [4, 6, :number]], [[2], [8, 9, :number]]]]
 JsonScanner.scan('[0, 42],', [[(1..-1)]], verbose_error: true)
 # JsonScanner::ParseError (parse error: trailing garbage)
 #                                 [0, 42],

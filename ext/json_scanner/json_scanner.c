@@ -865,9 +865,8 @@ static yajl_callbacks scan_callbacks = {
 // allow_comments, dont_validate_strings, allow_trailing_garbage, allow_multiple_values, allow_partial_values
 static VALUE scan(int argc, VALUE *argv, VALUE self)
 {
-  VALUE json_str, path_ary, with_path_flag, rb_options;
+  VALUE json_str, path_ary, rb_options;
   scan_options options;
-  int with_path = false;
 
   char *json_text;
   size_t json_text_len;
@@ -879,13 +878,12 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   // Turned out callbacks can't raise exceptions
   // VALUE callback_err;
 #if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)
-  rb_scan_args_kw(RB_SCAN_ARGS_LAST_HASH_KEYWORDS, argc, argv, "21:", &json_str, &path_ary, &with_path_flag, &rb_options);
+  rb_scan_args_kw(RB_SCAN_ARGS_LAST_HASH_KEYWORDS, argc, argv, "2:", &json_str, &path_ary, &rb_options);
 #else
-  rb_scan_args(argc, argv, "21:", &json_str, &path_ary, &with_path_flag, &rb_options);
+  rb_scan_args(argc, argv, "2:", &json_str, &path_ary, &rb_options);
 #endif
   rb_check_type(json_str, T_STRING);
   // rb_io_write(rb_stderr, rb_sprintf("with_path_flag: %" PRIsVALUE " \n", with_path_flag));
-  with_path = RTEST(with_path_flag);
   if (rb_obj_is_kind_of(rb_options, rb_cJsonScannerOptions))
   {
     scan_options *ptr;
@@ -896,8 +894,6 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   {
     scan_options_init(&options, rb_options);
   }
-  if (SCAN_OPTION_IS_SET(&options, with_path))
-    with_path = SCAN_OPTION(&options, with_path);
   if (SCAN_OPTION(&options, with_roots_info))
     roots_info_result = rb_ary_new();
   json_text = RSTRING_PTR(json_str);
@@ -928,7 +924,7 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   {
     rb_ary_push(result, rb_ary_new());
   }
-  scan_ctx_reset(ctx, result, roots_info_result, with_path, SCAN_OPTION(&options, symbolize_path_keys));
+  scan_ctx_reset(ctx, result, roots_info_result, SCAN_OPTION(&options, with_path), SCAN_OPTION(&options, symbolize_path_keys));
   // scan_ctx_debug(ctx);
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
