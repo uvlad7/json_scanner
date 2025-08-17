@@ -7,9 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNREALEASED]
 
+## Added
+
+- `JsonScanner.parse` method
+- `JsonScanner::Options` parameter instead of a hash
+
 ### Changed
 
 - Rename `JsonScanner::Config` into `JsonScanner::Selector`
+
+### Removed
+
+- Third positional arg in the `JsonScanner.scan` method that had the same meaning as `with_path:`
 
 ## [0.3.1] - 2025-08-14
 
