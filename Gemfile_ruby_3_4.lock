@@ -125,6 +125,7 @@ DEPENDENCIES
   ffi-yajl (~> 3.0)
   json (~> 2.13)
   json_scanner!
+  libyajl2 (~> 2.1)
   oj (~> 3.16)
   pry (~> 0.15.2)
   pry-byebug (~> 3.11)

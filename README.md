@@ -14,6 +14,38 @@ If bundler is not being used to manage dependencies, install the gem by executin
 
     $ gem install json_scanner
 
+This gem relies on the [yajl](https://github.com/lloyd/yajl) library and needs its development headers being installed. On Defian and Ubuntu you can install thel with the following command:
+
+    $ sudo apt install libyajl2 libyajl-dev
+
+YOu can also use `libyajl2` gem is to obtain the library. Install it before installing `json_scanner`:
+
+    $ gem install libyajl2 -v '2.1.0'
+
+and then install the gem by executing:
+
+    $ gem install json_scanner --with-libyajl2-gem
+
+If bundler is being used, you need to ensure the `libyajl2` gem is installed before it installs `json_scanner`:
+
+- add the following into your Gemfile:
+```ruby
+group :libyajl do
+  gem "libyajl2", "~> 2.1"
+end
+```
+- configure `with-libyajl2-gem` flag:
+
+    $ bundle config --local build.json_scanner --with-libyajl2-gem
+
+- install the group:
+
+    $ BUNDLE_WITHOUT='default' BUNDLE_WITH='libyajl2' bundle install # if you placed json_scanner into a group, replace 'default' with its name
+
+- now you can install the rest as usual:
+
+    $ bundle install
+
 ## Usage
 
 Basic usage

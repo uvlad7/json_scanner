@@ -49,3 +49,5 @@ if RUBY_VERSION >= "2.7"
   gem "yajl-ffi", "~> 1.0"
   gem "yajl-ruby", "~> 1.4"
 end
+
+gem "libyajl2", "~> 2.1"

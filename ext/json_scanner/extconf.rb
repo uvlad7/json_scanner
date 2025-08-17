@@ -7,7 +7,13 @@ require "mkmf"
 # selectively, or entirely remove this flag.
 append_cflags("-fvisibility=hidden")
 
-dir_config("yajl", "", "")
+idefault, ldefault = if with_config("libyajl2-gem")
+                       require "libyajl2"
+                       [Libyajl2.include_path, Libyajl2.opt_path]
+                     else
+                       ["", ""]
+                     end
+dir_config("yajl", idefault, ldefault)
 
 unless have_library("yajl") && have_header("yajl/yajl_parse.h") && have_header("yajl/yajl_gen.h")
   abort "yajl library not found"

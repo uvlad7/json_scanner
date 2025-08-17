@@ -22,6 +22,8 @@ Rake::ExtensionTestTask.new("json_scanner", GEMSPEC) do |ext|
   ext.lib_dir = "lib/json_scanner"
   # https://karottenreibe.github.io/2009/10/30/ruby-c-extension-7/
   ext.c_spec_files = FileList["spec/**{,/*/**}/*_spec.c"]
+  ext.config_options << "--with-libyajl2-gem"
+  ext.cross_config_options << "--with-libyajl2-gem"
 end
 
 task default: %i[clobber compile spec rubocop]
