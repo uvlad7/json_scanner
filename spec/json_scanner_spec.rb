@@ -301,7 +301,7 @@ RSpec.describe JsonScanner do
       described_class.parse(json_str, json_selector, allow_multiple_values: true),
     ).to eq(
       [
-        :null, :boolean, { "a" => 1 }, :number, { "b" => [nil, nil, 3] }, :object, :number, :array,
+        :null, :boolean, { "a" => 1 }, :number, { "b" => [:stub, :stub, 3] }, :object, :number, :array,
       ],
     )
   end
