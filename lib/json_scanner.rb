@@ -76,9 +76,8 @@ module JsonScanner
       res = res[index]
       index = new_index
     end
-    if res.is_a?(Array) && res.size < index
-      (index - res.size).times { res.push(STUB) }
-    end
+
+    (index - res.size).times { res.push(STUB) } if res.is_a?(Array) && res.size < index
     res[index] = parsed_value
   end
 
