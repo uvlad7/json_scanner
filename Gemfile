@@ -19,16 +19,15 @@ gem "rubocop-rspec", RUBY_VERSION >= "2.7" ? "~> 3.3" : "~> 1.38", require: fals
 
 gem "ruby_memcheck", "~> 2.3" if RUBY_VERSION >= "2.7"
 
-if RUBY_VERSION < "2.7"
-  gem "pry", "~> 0.12.2"
-  gem "pry-byebug", "~> 3.6.0"
-elsif RUBY_VERSION >= "3.4"
-  gem "pry", "~> 0.15.2"
-  gem "pry-byebug", "~> 3.11"
-else
-  gem "pry", "~> 0.14.2"
-  gem "pry-byebug", "~> 3.10.1"
-end
+pry_version, pry_byebug_version = if RUBY_VERSION < "2.7"
+                                    ["~> 0.12.2", "~> 3.6.0"]
+                                  elsif RUBY_VERSION >= "3.4"
+                                    ["~> 0.15.2", "~> 3.11"]
+                                  else
+                                    ["~> 0.14.2", "~> 3.10.1"]
+                                  end
+gem "pry", pry_version
+gem "pry-byebug", pry_byebug_version
 
 # benchmarks
 if RUBY_VERSION >= "2.7"
