@@ -11,7 +11,7 @@ module JsonScanner
   class Error < StandardError; end
 
   ALLOWED_OPTS = %i[verbose_error allow_comments dont_validate_strings allow_multiple_values
-                    allow_trailing_garbage allow_partial_values symbolize_path_keys].freeze
+                    allow_trailing_garbage allow_partial_values symbolize_path_keys symbolize_names].freeze
   private_constant :ALLOWED_OPTS
   STUB = :stub
   private_constant :STUB
@@ -22,6 +22,7 @@ module JsonScanner
       raise ArgumentError, "unknown keyword#{extra_opts.size > 1 ? "s" : ""}: #{extra_opts.map(&:inspect).join(", ")}"
     end
 
+    opts[:symbolize_path_keys] = opts.delete(:symbolize_names) if opts.key?(:symbolize_names)
     results, roots = scan(json_str, config_or_path_ary, **opts, with_path: true, with_roots_info: true)
 
     res = process_results(json_str, results, roots, opts[:symbolize_path_keys])
