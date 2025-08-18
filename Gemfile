@@ -49,4 +49,8 @@ if RUBY_VERSION >= "2.7"
   gem "yajl-ruby", "~> 1.4"
 end
 
+# test on the oldest version of the json gem we can expect based on the required_ruby_version
+# see https://stdgems.org/compare/2.3/
+gem "json", "1.8.3.1" if RUBY_VERSION < "2.4"
+
 gem "libyajl2", "~> 2.1"

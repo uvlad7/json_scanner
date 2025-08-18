@@ -42,3 +42,9 @@ Style/TrailingCommaInHashLiteral:
 
 Lint/RedundantCopDisableDirective:
   Enabled: false
+
+Metrics/AbcSize:
+  Max: 17
+
+Bundler/DuplicatedGem:
+  Enabled: false
