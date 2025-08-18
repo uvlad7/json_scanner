@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `JsonScanner.parse` method
 - `JsonScanner::Options` parameter instead of a hash
+- Support compilation with the `yajl2` library provided by the `libyajl2` gem
 
 ### Changed
 
