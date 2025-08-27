@@ -780,6 +780,14 @@ static VALUE selector_m_inspect(VALUE self)
   return res;
 }
 
+static VALUE selector_m_length(VALUE self)
+{
+  scan_ctx *ctx;
+  VALUE res;
+  TypedData_Get_Struct(self, scan_ctx, &selector_type, ctx);
+  return INT2FIX(ctx->paths_len);
+}
+
 static size_t options_size(const void *data)
 {
   return sizeof(scan_options);
@@ -1002,6 +1010,8 @@ Init_json_scanner(void)
   rb_define_alloc_func(rb_cJsonScannerSelector, selector_alloc);
   rb_define_method(rb_cJsonScannerSelector, "initialize", selector_m_initialize, 1);
   rb_define_method(rb_cJsonScannerSelector, "inspect", selector_m_inspect, 0);
+  rb_define_method(rb_cJsonScannerSelector, "length", selector_m_length, 0);
+  rb_define_alias(rb_cJsonScannerSelector, "size", "length");
   rb_cJsonScannerOptions = rb_define_class_under(rb_mJsonScanner, "Options", rb_cObject);
   rb_define_alloc_func(rb_cJsonScannerOptions, options_alloc);
   rb_define_method(rb_cJsonScannerOptions, "initialize", options_m_initialize, -1);
