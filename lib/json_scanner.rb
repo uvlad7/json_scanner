@@ -15,6 +15,10 @@ module JsonScanner
   private_constant :ALLOWED_OPTS
   STUB = :stub
   private_constant :STUB
+  SCAN_OPTS = { with_path: true, with_roots_info: true }.freeze
+  private_constant :SCAN_OPTS
+  SCAN_OPTIONS = Options.new(SCAN_OPTS)
+  private_constant :SCAN_OPTIONS
 
   def self.parse(json_str, config_or_path_ary, **opts)
     # with_path and with_roots_info is set here
@@ -23,7 +27,11 @@ module JsonScanner
     end
 
     opts[:symbolize_path_keys] = opts.delete(:symbolize_names) if opts.key?(:symbolize_names)
-    results, roots = scan(json_str, config_or_path_ary, **opts, with_path: true, with_roots_info: true)
+    results, roots = if opts.empty?
+                       scan(json_str, config_or_path_ary, SCAN_OPTIONS)
+                     else
+                       scan(json_str, config_or_path_ary, **opts, **SCAN_OPTS)
+                     end
 
     res = process_results(json_str, results, roots, opts[:symbolize_path_keys])
 

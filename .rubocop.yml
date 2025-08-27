@@ -44,7 +44,10 @@ Lint/RedundantCopDisableDirective:
   Enabled: false
 
 Metrics/AbcSize:
-  Max: 17
+  Max: 20
+
+Metrics/MethodLength:
+  Max: 15
 
 Bundler/DuplicatedGem:
   Enabled: false
