@@ -22,6 +22,13 @@ RSpec.describe JsonScanner do
     )
   end
 
+  it "validates params" do
+    expect(described_class.scan("1", [])).to eq([])
+    expect(described_class.scan("1", [], nil)).to eq([])
+    expect(described_class.scan("1", [], {})).to eq([])
+    expect { described_class.scan("1", [], 1) }.to raise_error(TypeError)
+  end
+
   it "supports 'symbolize_path_keys'" do
     expect(
       described_class.scan('{"a": {"b": 1}}', [[:a, "b"]], with_path: true),
@@ -340,7 +347,23 @@ RSpec.describe JsonScanner do
     it "supports inspect" do
       expect(
         described_class.new([[], ["abracadabra", JsonScanner::ANY_INDEX], [42, JsonScanner::ANY_KEY]]).inspect,
-      ).to eq("#<JsonScanner::Selector [[], ['abracadabra', (0..9223372036854775807)], [42, ('*'..'*')]]>")
+      ).to eq("#<JsonScanner::Selector [[], ['abracadabra', (0..-1)], [42, ('*'..'*')]]>")
+    end
+  end
+
+  describe described_class::Options do
+    it "allows to reuse options" do
+      options = described_class.new(allow_trailing_garbage: true, allow_partial_values: true)
+      expect(
+        JsonScanner.scan('{"question1": 1, "answer": 42, "question2": 2}___', [["answer"]], options),
+      ).to eq([[[27, 29, :number]]])
+      expect(JsonScanner.scan('{"question1": 1, "answer": 42', [["answer"]], options)).to eq([[[27, 29, :number]]])
+    end
+
+    it "supports inspect" do
+      expect(
+        described_class.new(allow_trailing_garbage: true, allow_partial_values: true).inspect,
+      ).to eq("#<JsonScanner::Options {allow_trailing_garbage: true, allow_partial_values: true}>")
     end
   end
 end

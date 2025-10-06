@@ -763,7 +763,7 @@ static VALUE selector_m_inspect(VALUE self)
         rb_str_catf(res, "%ld", ctx->paths[i].elems[j].value.index);
         break;
       case MATCHER_INDEX_RANGE:
-        rb_str_catf(res, "(%ld..%ld)", ctx->paths[i].elems[j].value.range.start, ctx->paths[i].elems[j].value.range.end);
+        rb_str_catf(res, "(%ld..%ld)", ctx->paths[i].elems[j].value.range.start, ctx->paths[i].elems[j].value.range.end == LONG_MAX ? -1L : ctx->paths[i].elems[j].value.range.end);
         break;
       case MATCHER_ANY_KEY:
         rb_str_buf_cat_ascii(res, "('*'..'*')");
@@ -783,7 +783,6 @@ static VALUE selector_m_inspect(VALUE self)
 static VALUE selector_m_length(VALUE self)
 {
   scan_ctx *ctx;
-  VALUE res;
   TypedData_Get_Struct(self, scan_ctx, &selector_type, ctx);
   return INT2FIX(ctx->paths_len);
 }
@@ -885,22 +884,30 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   VALUE err_msg = Qnil, bytes_consumed = Qnil, result, roots_info_result = Qundef;
   // Turned out callbacks can't raise exceptions
   // VALUE callback_err;
-#if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)
-  rb_scan_args_kw(RB_SCAN_ARGS_LAST_HASH_KEYWORDS, argc, argv, "2:", &json_str, &path_ary, &rb_options);
-#else
-  rb_scan_args(argc, argv, "2:", &json_str, &path_ary, &rb_options);
-#endif
+  rb_scan_args(argc, argv, "21", &json_str, &path_ary, &rb_options);
   rb_check_type(json_str, T_STRING);
   // rb_io_write(rb_stderr, rb_sprintf("with_path_flag: %" PRIsVALUE " \n", with_path_flag));
-  if (rb_obj_is_kind_of(rb_options, rb_cJsonScannerOptions))
+  switch (TYPE(rb_options))
   {
-    scan_options *ptr;
-    TypedData_Get_Struct(rb_options, scan_options, &options_type, ptr);
-    options = *ptr;
-  }
-  else
-  {
+  case T_HASH:
+  case T_NIL:
     scan_options_init(&options, rb_options);
+    break;
+  case T_DATA:
+    if (rb_obj_is_kind_of(rb_options, rb_cJsonScannerOptions))
+    {
+      scan_options *ptr;
+      TypedData_Get_Struct(rb_options, scan_options, &options_type, ptr);
+      options = *ptr;
+    }
+    else
+    {
+      rb_raise(rb_eTypeError, "Expected a Hash or %" PRIsVALUE ", got %" PRIsVALUE, rb_cJsonScannerOptions, rb_obj_class(rb_options));
+    }
+    break;
+  default:
+    rb_raise(rb_eTypeError, "Expected a Hash or %" PRIsVALUE ", got %" PRIsVALUE, rb_cJsonScannerOptions, rb_obj_class(rb_options));
+    break;
   }
   if (SCAN_OPTION(&options, with_roots_info))
     roots_info_result = rb_ary_new();
