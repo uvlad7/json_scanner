@@ -18,7 +18,7 @@ This gem relies on the [yajl](https://github.com/lloyd/yajl) library and needs i
 
     $ sudo apt install libyajl2 libyajl-dev
 
-YOu can also use `libyajl2` gem is to obtain the library. Install it before installing `json_scanner`:
+You can also use `libyajl2` gem to obtain the library. Install it before installing `json_scanner`:
 
     $ gem install libyajl2 -v '2.1.0'
 
@@ -35,17 +35,18 @@ group :libyajl do
 end
 ```
 - configure `with-libyajl2-gem` flag:
-
-    $ bundle config --local build.json_scanner --with-libyajl2-gem
-
+```
+$ bundle config --local build.json_scanner --with-libyajl2-gem
+```
 - install the group:
-
-    $ BUNDLE_WITHOUT='default' BUNDLE_WITH='libyajl2' bundle install # if you placed json_scanner into a group, replace 'default' with its name
-
+```
+# if you placed json_scanner into a group, replace 'default' with its name
+$ BUNDLE_WITHOUT='default' BUNDLE_WITH='libyajl2' bundle install
+```
 - now you can install the rest as usual:
-
-    $ bundle install
-
+```
+$ bundle install
+```
 ## Usage
 
 Basic usage
@@ -149,6 +150,8 @@ JsonScanner.scan(
   with_path: true, symbolize_path_keys: true,
 )
 # => [[[[:a], [6, 7, :number]]]]
+JsonScanner.scan('[42]42{"a":42} true', [], allow_multiple_values: true, with_roots_info: true).last
+# => [[:array, 0], [:number, 4], [:object, 6], [:boolean, 15]]
 ```
 
 ### Comments in the JSON
