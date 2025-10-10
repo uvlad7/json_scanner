@@ -49,7 +49,7 @@ $ bundle install
 ```
 ## Usage
 
-Basic usage
+### Basic usage
 
 ```ruby
 require "json"
@@ -114,7 +114,29 @@ end
 # => [[[14, 15, :number], [44, 45, :number]]]
 ```
 
-## Options
+### Parsing
+
+`JsonScanner` offers a convenient - but less performant and memory efficient - `JsonScanner.parse` method, that parses only selected values.
+Skipped array indices are filled with `:stub` values, so you can access matched values by index as expected
+
+```ruby
+JsonScanner.parse('[1, 2, null, {"a": 42, "b": 33}, 5]', [[(1..2)], [3, "a"]])
+# => [:stub, 2, nil, {"a"=>42}]
+```
+
+`JsonScanner.parse` supports almost the same options `JsonScanner.scan` does, except `with_path` and `with_roots_info`; it also accepts `JsonScanner::Selector`, but doesn't accept `JsonScanner::Options`
+
+```ruby
+JsonScanner.parse('[0, 42, 0]garbage', [[(1..-1)]], allow_trailing_garbage: true)
+# => [:stub, 42, 0]
+JsonScanner.parse(
+  'null false {"a": 1, "b": [0,1], "c": 42}  4.2 {"b": [1,2,3]} {} 1 []',
+  JsonScanner::Selector.new([["a"], ["b", 2]]), allow_multiple_values: true,
+)
+# => [:null, :boolean, {"a"=>1}, :number, {"b"=>[:stub, :stub, 3]}, :object, :number, :array]
+```
+
+### Options
 
 `JsonScanner` supports multiple options
 
@@ -181,7 +203,7 @@ json_end_pos = JsonScanner.scan(
 apollo_state = JSON.parse(json_with_trailing_garbage[0...json_end_pos])
 ```
 
-## Reuse configuration
+### Reuse configuration
 
 You can create a `JsonScanner::Selector` instance and reuse it between `JsonScanner.scan` calls
 
@@ -231,7 +253,7 @@ end
 # scanner_options   0.907289   0.005055   0.912344 (  0.912379)
 ```
 
-## Streaming mode
+### Streaming mode
 
 Streaming mode isn't supported yet, as it's harder to implement and to use. I plan to add it in the future, its API is a subject to discussion. If you have suggestions, use cases, or preferences for how it should behave, I’d love to hear from you!
 
