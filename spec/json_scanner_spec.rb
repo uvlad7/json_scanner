@@ -355,6 +355,16 @@ RSpec.describe JsonScanner do
       ).to eq(
         [{}, [], 42],
       )
+      expect(
+        described_class.parse("[]2{}", [[]], allow_multiple_values: true),
+      ).to eq(
+        [[], 2, {}],
+      )
+      expect(
+        described_class.parse("{}2[]", [[]], allow_multiple_values: true),
+      ).to eq(
+        [{}, 2, []],
+      )
     end
   end
 
