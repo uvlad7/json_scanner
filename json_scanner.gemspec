@@ -23,8 +23,8 @@ Gem::Specification.new do |spec|
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
   File.basename(__FILE__)
   spec.files = [
-    *(Dir["{lib,sig,spec}/**/*"] - Dir["lib/**/*.{so,dylib,dll}"]),
-    *Dir["ext/json_scanner/{extconf.rb,json_scanner.c,json_scanner.h}"], "README.md",
+    *(Dir["{lib,sig}/**/*"] - Dir["lib/**/*.{so,dylib,dll}"]),
+    *Dir["ext/json_scanner/{extconf.rb,json_scanner.c,json_scanner.h}"],
   ].reject { |f| File.directory?(f) }
   spec.require_paths = ["lib"]
   spec.extensions = ["ext/json_scanner/extconf.rb"]
