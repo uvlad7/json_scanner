@@ -306,6 +306,11 @@ RSpec.describe JsonScanner do
 
   describe ".parse" do
     it "extracts values" do
+      expect(
+        described_class.parse("[1, 2, 3, 4, 5]", [[(1..3)]]),
+      ).to eq(
+        [:stub, 2, 3, 4],
+      )
       json_str = 'null false {"a": 1, "b": [0,1], "c": 42}  4.2 {"b": [1,2,3]} {} 1 []'
       json_selector = [["a"], ["b", 2]]
       expect(
