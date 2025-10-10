@@ -39,6 +39,28 @@ RSpec.describe JsonScanner do
       ).to eq([[[%i[a b], [12, 13, :number]]]])
     end
 
+    it "supports 'with_roots_info'" do
+      values = [
+        [1, 3, :object],
+        [4, 6, :array],
+        [7, 9, :number],
+        [10, 15, :number],
+        [16, 19, :number],
+        [20, 26, :number],
+        [27, 31, :null],
+        [32, 36, :boolean],
+        [37, 42, :boolean],
+        [43, 47, :string],
+      ]
+      roots = values.map { |b, _e, t| [t, b] }
+      expect(
+        described_class.scan(
+          ' {} [] 42 42.42 -42 -42.42 null true false "42"', [[]],
+          with_roots_info: true, allow_multiple_values: true,
+        ),
+      ).to eq([[values], roots])
+    end
+
     it "supports any key selector" do
       expect(
         described_class.scan(
@@ -319,6 +341,19 @@ RSpec.describe JsonScanner do
         [
           :null, :boolean, { "a" => 1 }, :number, { "b" => [:stub, :stub, 3] }, :object, :number, :array,
         ],
+      )
+    end
+
+    it "handles borders correctly" do
+      expect(
+        described_class.parse("[]{}42", [[]], allow_multiple_values: true),
+      ).to eq(
+        [[], {}, 42],
+      )
+      expect(
+        described_class.parse("{}[]42", [[]], allow_multiple_values: true),
+      ).to eq(
+        [{}, [], 42],
       )
     end
   end

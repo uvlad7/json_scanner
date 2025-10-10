@@ -488,11 +488,11 @@ static VALUE create_path(scan_ctx *sctx)
 }
 
 // noexcept
-static inline void save_root_info(scan_ctx *sctx, VALUE type)
+static inline void save_root_info(scan_ctx *sctx, VALUE type, size_t len)
 {
   if (sctx->roots_info_list != Qundef && sctx->current_path_len == 0)
   {
-    rb_ary_push(sctx->roots_info_list, rb_ary_new_from_args(2, type, ULL2NUM(scan_ctx_get_bytes_consumed(sctx))));
+    rb_ary_push(sctx->roots_info_list, rb_ary_new_from_args(2, type, ULL2NUM(scan_ctx_get_bytes_consumed(sctx) - len)));
   }
 }
 
@@ -561,7 +561,7 @@ static void save_point(scan_ctx *sctx, value_type type, size_t length)
 static int scan_on_null(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  save_root_info(sctx, null_sym);
+  save_root_info(sctx, null_sym, 4);
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
@@ -573,7 +573,7 @@ static int scan_on_null(void *ctx)
 static int scan_on_boolean(void *ctx, int bool_val)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  save_root_info(sctx, boolean_sym);
+  save_root_info(sctx, boolean_sym, bool_val ? 4 : 5);
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
@@ -585,7 +585,7 @@ static int scan_on_boolean(void *ctx, int bool_val)
 static int scan_on_number(void *ctx, const char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  save_root_info(sctx, number_sym);
+  save_root_info(sctx, number_sym, len);
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
@@ -597,7 +597,7 @@ static int scan_on_number(void *ctx, const char *val, size_t len)
 static int scan_on_string(void *ctx, const unsigned char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  save_root_info(sctx, string_sym);
+  save_root_info(sctx, string_sym, len + 2);
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
@@ -610,7 +610,7 @@ static int scan_on_start_object(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   // Save in the beginning in case of a partial value
-  save_root_info(sctx, object_sym);
+  save_root_info(sctx, object_sym, 1);
   if (sctx->current_path_len > sctx->max_path_len)
   {
     sctx->current_path_len++;
@@ -652,7 +652,7 @@ static int scan_on_start_array(void *ctx)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
   // Save in the beginning in case of a partial value
-  save_root_info(sctx, array_sym);
+  save_root_info(sctx, array_sym, 1);
   if (sctx->current_path_len > sctx->max_path_len)
   {
     sctx->current_path_len++;
