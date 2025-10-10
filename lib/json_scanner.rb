@@ -23,7 +23,7 @@ module JsonScanner
   def self.parse(json_str, config_or_path_ary, **opts)
     # with_path and with_roots_info is set here
     unless (extra_opts = opts.keys - ALLOWED_OPTS).empty?
-      raise ArgumentError, "unknown keyword#{extra_opts.size > 1 ? "s" : ""}: #{extra_opts.map(&:inspect).join(", ")}"
+      raise ArgumentError, "unknown keyword#{"s" if extra_opts.size > 1}: #{extra_opts.map(&:inspect).join(", ")}"
     end
 
     opts[:symbolize_path_keys] = opts.delete(:symbolize_names) if opts.key?(:symbolize_names)
