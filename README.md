@@ -189,7 +189,7 @@ You can create a `JsonScanner::Selector` instance and reuse it between `JsonScan
 require "json_scanner"
 
 selector = JsonScanner::Selector.new([[], ["key"], [(0..-1)]])
-# => #<JsonScanner::Selector [[], ['key'], [(0..9223372036854775807)]]>
+# => #<JsonScanner::Selector [[], ['key'], [(0..-1)]]>
 JsonScanner.scan('{"key": "42"}', selector)
 # => [[[0, 13, :object]], [[8, 12, :string]], []]
 JsonScanner.scan('{"key": "42"}', selector, with_path: true)
