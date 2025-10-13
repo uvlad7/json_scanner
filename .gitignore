@@ -16,3 +16,4 @@ Makefile
 # rspec failure tracking
 .rspec_status
 yajl/
+.vscode/
