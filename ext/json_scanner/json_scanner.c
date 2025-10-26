@@ -231,7 +231,6 @@ void scan_ctx_debug(scan_ctx *ctx)
   fprintf(stderr, "}\n\n\n");
 }
 
-// FIXME: This will cause memory leak if ruby_xmalloc raises
 // path_ary must be RB_GC_GUARD-ed by the caller
 static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
 {
@@ -290,15 +289,27 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
 
   ctx->max_path_len = 0;
 
-  paths = ruby_xmalloc(sizeof(paths_t) * path_ary_len);
+  size_t total_size = sizeof(paths_t) * path_ary_len;
+  for (int i = 0; i < path_ary_len; i++)
+  {
+    int path_len = rb_long2int(rb_array_len(rb_ary_entry(path_ary, i)));
+    if (path_len > ctx->max_path_len)
+      ctx->max_path_len = path_len;
+    total_size += sizeof(path_matcher_elem_t) * path_len;
+  }
+  total_size += sizeof(size_t) * (ctx->max_path_len + 1);
+  total_size += sizeof(path_elem_t) * ctx->max_path_len;
+  void * arena = ruby_xmalloc(total_size);
+
+  paths = arena;
+  arena += sizeof(paths_t) * path_ary_len;
   for (int i = 0; i < path_ary_len; i++)
   {
     int path_len;
     VALUE path = rb_ary_entry(path_ary, i);
     path_len = rb_long2int(rb_array_len(path));
-    if (path_len > ctx->max_path_len)
-      ctx->max_path_len = path_len;
-    paths[i].elems = ruby_xmalloc2(sizeof(path_matcher_elem_t), path_len);
+    paths[i].elems = arena;
+    arena += sizeof(path_matcher_elem_t) * path_len;
     for (int j = 0; j < path_len; j++)
     {
       VALUE entry = rb_ary_entry(path, j);
@@ -363,9 +374,11 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
 
   ctx->paths = paths;
   ctx->paths_len = path_ary_len;
-  ctx->current_path = ruby_xmalloc2(sizeof(path_elem_t), ctx->max_path_len);
+  ctx->current_path = arena;
+  arena += sizeof(path_elem_t) * ctx->max_path_len;
 
-  ctx->starts = ruby_xmalloc2(sizeof(size_t), ctx->max_path_len + 1);
+  ctx->starts = arena;
+  arena += sizeof(size_t) * ctx->max_path_len + 1;
   return Qundef; // no error
 }
 
@@ -388,14 +401,8 @@ static void scan_ctx_free(scan_ctx *ctx)
   // fprintf(stderr, "scan_ctx_free\n");
   if (!ctx)
     return;
-  ruby_xfree(ctx->starts);
-  ruby_xfree(ctx->current_path);
   if (!ctx->paths)
     return;
-  for (int i = 0; i < ctx->paths_len; i++)
-  {
-    ruby_xfree(ctx->paths[i].elems);
-  }
   ruby_xfree(ctx->paths);
 }
 

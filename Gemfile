@@ -29,6 +29,8 @@ pry_version, pry_byebug_version = if RUBY_VERSION < "2.7"
 gem "pry", pry_version
 gem "pry-byebug", pry_byebug_version
 
+#   spec.add_development_dependency 'bump'
+
 # benchmarks
 if RUBY_VERSION >= "2.7"
   gem "benchmark", "~> 0.4.1"
