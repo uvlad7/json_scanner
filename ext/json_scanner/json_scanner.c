@@ -91,6 +91,7 @@ typedef struct
   size_t *starts;
   yajl_handle handle;
   size_t yajl_bytes_consumed;
+  const unsigned char *json_text;
 } scan_ctx;
 
 typedef struct
@@ -157,6 +158,30 @@ static inline size_t scan_ctx_get_bytes_consumed(scan_ctx *ctx)
 static inline void scan_ctx_save_bytes_consumed(scan_ctx *ctx)
 {
   ctx->yajl_bytes_consumed += yajl_get_bytes_consumed(ctx->handle);
+}
+
+static size_t scan_ctx_get_string_length(scan_ctx *ctx)
+{
+  size_t end = scan_ctx_get_bytes_consumed(ctx);
+  size_t pos;
+
+  if (end < 2)
+    return end;
+  pos = end - 1;
+
+  while (pos > 0)
+  {
+    size_t backslashes = 0;
+    pos--;
+    if (ctx->json_text[pos] != '"')
+      continue;
+    for (size_t i = pos; i > 0 && ctx->json_text[i - 1] == '\\'; i--)
+      backslashes++;
+    if (backslashes % 2 == 0)
+      return end - pos;
+  }
+
+  return end;
 }
 
 void scan_ctx_debug(scan_ctx *ctx)
@@ -615,11 +640,14 @@ static int scan_on_number(void *ctx, const char *val, size_t len)
 static int scan_on_string(void *ctx, const unsigned char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  save_root_info(sctx, string_sym, len + 2);
+  size_t source_len = scan_ctx_get_string_length(sctx);
+  (void)val;
+  (void)len;
+  save_root_info(sctx, string_sym, source_len);
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
-  save_point(sctx, string_value, len + 2);
+  save_point(sctx, string_value, source_len);
   return true;
 }
 
@@ -1011,6 +1039,7 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
     rb_ary_push(result, rb_ary_new());
   }
   scan_ctx_reset(ctx, result, roots_info_result, SCAN_OPTION(&options, with_path), SCAN_OPTION(&options, symbolize_path_keys));
+  ctx->json_text = (const unsigned char *)json_text;
   // scan_ctx_debug(ctx);
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
