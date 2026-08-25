@@ -566,7 +566,7 @@ static void save_point(scan_ctx *sctx, value_type type, size_t length)
       case MATCHER_KEY:
         if (sctx->current_path[j].type != PATH_KEY ||
             sctx->current_path[j].value.key.len != sctx->paths[i].elems[j].value.key.len ||
-            strncmp(sctx->current_path[j].value.key.val, sctx->paths[i].elems[j].value.key.val, sctx->current_path[j].value.key.len))
+            memcmp(sctx->current_path[j].value.key.val, sctx->paths[i].elems[j].value.key.val, sctx->current_path[j].value.key.len))
           match = false;
         break;
       case MATCHER_INDEX:
