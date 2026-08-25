@@ -232,11 +232,11 @@ void scan_ctx_debug(scan_ctx *ctx)
 }
 
 // path_ary must be RB_GC_GUARD-ed by the caller
-static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
+static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
 {
   int path_ary_len;
   paths_t *paths;
-  size_t arena_size, arena_off;
+  size_t arena_size, arena_off, current_path_off, starts_off, key_arena_off, key_bytes = 0;
   void *arena;
   // TODO: Allow to_ary and sized enumerables
   rb_check_type(path_ary, T_ARRAY);
@@ -260,7 +260,9 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
         /* fall through */
       case T_STRING:
 #if LONG_MAX > SIZE_MAX
-        RSTRING_LENINT(entry);
+        key_bytes = checked_size_add(key_bytes, (size_t)RSTRING_LENINT(entry));
+#else
+        key_bytes = checked_size_add(key_bytes, (size_t)RSTRING_LEN(entry));
 #endif
         break;
       case T_FIXNUM:
@@ -299,8 +301,12 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
       ctx->max_path_len = path_len;
     arena_size = checked_size_add(arena_size, checked_size_mul(path_len, sizeof(path_matcher_elem_t)));
   }
-  arena_size = checked_size_add(arena_size, checked_size_mul((size_t)ctx->max_path_len + 1, sizeof(size_t)));
+  current_path_off = arena_size;
   arena_size = checked_size_add(arena_size, checked_size_mul(ctx->max_path_len, sizeof(path_elem_t)));
+  starts_off = arena_size;
+  arena_size = checked_size_add(arena_size, checked_size_mul((size_t)ctx->max_path_len + 1, sizeof(size_t)));
+  key_arena_off = arena_size;
+  arena_size = checked_size_add(arena_size, key_bytes);
   arena = ruby_xmalloc(arena_size);
   arena_off = 0;
 
@@ -329,21 +335,15 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
         /* fall through */
       case T_STRING:
       {
-        if (string_keys != Qundef)
-        {
-          // If string_keys is provided, we need to duplicate the string
-          // to avoid use-after-free issues and to add the newly created string to the string_keys array.
-          // In Ruby 2.2 and newer symbols can be GC-ed, so we need to duplicate them as well.
-          entry = rb_str_dup(entry);
-          rb_ary_push(string_keys, entry);
-        }
         paths[i].elems[j].type = MATCHER_KEY;
-        paths[i].elems[j].value.key.val = RSTRING_PTR(entry);
 #if LONG_MAX > SIZE_MAX
         paths[i].elems[j].value.key.len = RSTRING_LENINT(entry);
 #else
         paths[i].elems[j].value.key.len = RSTRING_LEN(entry);
 #endif
+        paths[i].elems[j].value.key.val = (const char *)arena + key_arena_off;
+        memcpy((unsigned char *)arena + key_arena_off, RSTRING_PTR(entry), paths[i].elems[j].value.key.len);
+        key_arena_off = checked_size_add(key_arena_off, paths[i].elems[j].value.key.len);
       }
       break;
       case T_FIXNUM:
@@ -383,10 +383,8 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
 
   ctx->paths = paths;
   ctx->paths_len = path_ary_len;
-  ctx->current_path = (path_elem_t *)((unsigned char *)arena + arena_off);
-  arena_off = checked_size_add(arena_off, checked_size_mul(ctx->max_path_len, sizeof(path_elem_t)));
-
-  ctx->starts = (size_t *)((unsigned char *)arena + arena_off);
+  ctx->current_path = (path_elem_t *)((unsigned char *)arena + current_path_off);
+  ctx->starts = (size_t *)((unsigned char *)arena + starts_off);
   return Qundef; // no error
 }
 
@@ -717,6 +715,11 @@ static size_t selector_size(const void *data)
     for (int i = 0; i < ctx->paths_len; i++)
     {
       res += ctx->paths[i].len * sizeof(path_matcher_elem_t);
+      for (int j = 0; j < ctx->paths[i].len; j++)
+      {
+        if (ctx->paths[i].elems[j].type == MATCHER_KEY)
+          res += ctx->paths[i].elems[j].value.key.len;
+      }
     }
   }
   return res;
@@ -746,15 +749,13 @@ static VALUE selector_alloc(VALUE self)
 static VALUE selector_m_initialize(VALUE self, VALUE path_ary)
 {
   scan_ctx *ctx;
-  VALUE scan_ctx_init_err, string_keys;
+  VALUE scan_ctx_init_err;
   TypedData_Get_Struct(self, scan_ctx, &selector_type, ctx);
-  string_keys = rb_ary_new();
-  scan_ctx_init_err = scan_ctx_init(ctx, path_ary, string_keys);
+  scan_ctx_init_err = scan_ctx_init(ctx, path_ary);
   if (scan_ctx_init_err != Qundef)
   {
     rb_exc_raise(scan_ctx_init_err);
   }
-  rb_iv_set(self, "string_keys", string_keys);
   return self;
 }
 
@@ -942,7 +943,7 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
     VALUE scan_ctx_init_err;
     ctx = ruby_xmalloc(sizeof(scan_ctx));
     ctx->paths = NULL;
-    scan_ctx_init_err = scan_ctx_init(ctx, path_ary, Qundef);
+    scan_ctx_init_err = scan_ctx_init(ctx, path_ary);
     if (scan_ctx_init_err != Qundef)
     {
       scan_ctx_free(ctx);
