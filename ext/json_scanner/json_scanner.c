@@ -375,7 +375,7 @@ static void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
       case T_BIGNUM:
       {
         paths[i].elems[j].type = MATCHER_INDEX;
-        paths[i].elems[j].value.index = FIX2LONG(entry);
+        paths[i].elems[j].value.index = NUM2LONG(entry);
       }
       break;
       default:
