@@ -143,7 +143,7 @@ static void scan_options_init(scan_options *options, VALUE kwargs)
     if (kwargs_values[6] != Qundef)
       SCAN_OPTION_SET(options, allow_partial_values, RTEST(kwargs_values[6]));
     if (kwargs_values[7] != Qundef)
-      SCAN_OPTION_SET(options, symbolize_path_keys, RTEST(kwargs_values[8]));
+      SCAN_OPTION_SET(options, symbolize_path_keys, RTEST(kwargs_values[7]));
     if (kwargs_values[8] != Qundef)
       SCAN_OPTION_SET(options, with_roots_info, RTEST(kwargs_values[8]));
   }

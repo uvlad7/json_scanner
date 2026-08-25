@@ -37,6 +37,9 @@ RSpec.describe JsonScanner do
       expect(
         described_class.scan('{"a": {"b": 1}}', [[:a, "b"]], with_path: true, symbolize_path_keys: true),
       ).to eq([[[%i[a b], [12, 13, :number]]]])
+      expect(
+        described_class.scan('{"a": {"b": 1}}', [[:a, "b"]], with_path: true, symbolize_path_keys: false),
+      ).to eq([[[%w[a b], [12, 13, :number]]]])
     end
 
     it "supports 'with_roots_info'" do
