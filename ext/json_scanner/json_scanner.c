@@ -236,6 +236,8 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
 {
   int path_ary_len;
   paths_t *paths;
+  size_t arena_size, arena_off;
+  void *arena;
   // TODO: Allow to_ary and sized enumerables
   rb_check_type(path_ary, T_ARRAY);
   path_ary_len = rb_long2int(rb_array_len(path_ary));
@@ -289,27 +291,34 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
 
   ctx->max_path_len = 0;
 
-  size_t total_size = sizeof(paths_t) * path_ary_len;
+  arena_size = checked_size_mul(path_ary_len, sizeof(paths_t));
   for (int i = 0; i < path_ary_len; i++)
   {
     int path_len = rb_long2int(rb_array_len(rb_ary_entry(path_ary, i)));
     if (path_len > ctx->max_path_len)
       ctx->max_path_len = path_len;
-    total_size += sizeof(path_matcher_elem_t) * path_len;
+    arena_size = checked_size_add(arena_size, checked_size_mul(path_len, sizeof(path_matcher_elem_t)));
   }
-  total_size += sizeof(size_t) * (ctx->max_path_len + 1);
-  total_size += sizeof(path_elem_t) * ctx->max_path_len;
-  void * arena = ruby_xmalloc(total_size);
+  arena_size = checked_size_add(arena_size, checked_size_mul((size_t)ctx->max_path_len + 1, sizeof(size_t)));
+  arena_size = checked_size_add(arena_size, checked_size_mul(ctx->max_path_len, sizeof(path_elem_t)));
+  arena = ruby_xmalloc(arena_size);
+  arena_off = 0;
 
-  paths = arena;
-  arena += sizeof(paths_t) * path_ary_len;
+  paths = (paths_t *)arena;
+  arena_off = checked_size_mul(path_ary_len, sizeof(paths_t));
+  // Assign ctx->paths early so ruby_xfree(ctx->paths) will free the arena
+  // if a Ruby exception happens during the population loop below
+  ctx->paths = paths;
+  ctx->paths_len = 0;
+  ctx->current_path = NULL;
+  ctx->starts = NULL;
   for (int i = 0; i < path_ary_len; i++)
   {
     int path_len;
     VALUE path = rb_ary_entry(path_ary, i);
     path_len = rb_long2int(rb_array_len(path));
-    paths[i].elems = arena;
-    arena += sizeof(path_matcher_elem_t) * path_len;
+    paths[i].elems = (path_matcher_elem_t *)((unsigned char *)arena + arena_off);
+    arena_off = checked_size_add(arena_off, checked_size_mul(path_len, sizeof(path_matcher_elem_t)));
     for (int j = 0; j < path_len; j++)
     {
       VALUE entry = rb_ary_entry(path, j);
@@ -374,11 +383,10 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary, VALUE string_keys)
 
   ctx->paths = paths;
   ctx->paths_len = path_ary_len;
-  ctx->current_path = arena;
-  arena += sizeof(path_elem_t) * ctx->max_path_len;
+  ctx->current_path = (path_elem_t *)((unsigned char *)arena + arena_off);
+  arena_off = checked_size_add(arena_off, checked_size_mul(ctx->max_path_len, sizeof(path_elem_t)));
 
-  ctx->starts = arena;
-  arena += sizeof(size_t) * ctx->max_path_len + 1;
+  ctx->starts = (size_t *)((unsigned char *)arena + arena_off);
   return Qundef; // no error
 }
 
@@ -933,9 +941,11 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   {
     VALUE scan_ctx_init_err;
     ctx = ruby_xmalloc(sizeof(scan_ctx));
+    ctx->paths = NULL;
     scan_ctx_init_err = scan_ctx_init(ctx, path_ary, Qundef);
     if (scan_ctx_init_err != Qundef)
     {
+      scan_ctx_free(ctx);
       ruby_xfree(ctx);
       rb_exc_raise(scan_ctx_init_err);
     }
