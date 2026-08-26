@@ -335,14 +335,15 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
         /* fall through */
       case T_STRING:
       {
+        char *key_dst = (char *)arena + key_arena_off;
         paths[i].elems[j].type = MATCHER_KEY;
 #if LONG_MAX > SIZE_MAX
         paths[i].elems[j].value.key.len = RSTRING_LENINT(entry);
 #else
         paths[i].elems[j].value.key.len = RSTRING_LEN(entry);
 #endif
-        paths[i].elems[j].value.key.val = (const char *)arena + key_arena_off;
-        memcpy((unsigned char *)arena + key_arena_off, RSTRING_PTR(entry), paths[i].elems[j].value.key.len);
+        paths[i].elems[j].value.key.val = key_dst;
+        memcpy(key_dst, RSTRING_PTR(entry), paths[i].elems[j].value.key.len);
         key_arena_off = checked_size_add(key_arena_off, paths[i].elems[j].value.key.len);
       }
       break;
