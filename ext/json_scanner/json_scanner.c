@@ -231,7 +231,7 @@ void scan_ctx_debug(scan_ctx *ctx)
 }
 
 // path_ary must be RB_GC_GUARD-ed by the caller
-static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
+static void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
 {
   int path_ary_len;
   paths_t *paths;
@@ -274,16 +274,16 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
         long end_val;
         int open_ended;
         if (rb_range_values(entry, &range_beg, &range_end, &open_ended) != Qtrue)
-          return rb_exc_new_cstr(rb_eArgError, "path elements must be strings, integers, or ranges");
+          rb_raise(rb_eArgError, "path elements must be strings, integers, or ranges");
         if (range_beg != any_key_sym || range_end != any_key_sym)
         {
           if (NUM2LONG(range_beg) < 0L)
-            return rb_exc_new_cstr(rb_eArgError, "range start must be positive");
+            rb_raise(rb_eArgError, "range start must be positive");
           end_val = NUM2LONG(range_end);
           if (end_val < -1L)
-            return rb_exc_new_cstr(rb_eArgError, "range end must be positive or -1");
+            rb_raise(rb_eArgError, "range end must be positive or -1");
           if (end_val == -1L && open_ended)
-            return rb_exc_new_cstr(rb_eArgError, "range with -1 end must be closed");
+            rb_raise(rb_eArgError, "range with -1 end must be closed");
         }
       }
       }
@@ -385,7 +385,19 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
   ctx->paths_len = path_ary_len;
   ctx->current_path = (path_elem_t *)((unsigned char *)arena + current_path_off);
   ctx->starts = (size_t *)((unsigned char *)arena + starts_off);
-  return Qundef; // no error
+}
+
+typedef struct
+{
+  scan_ctx *ctx;
+  VALUE path_ary;
+} scan_ctx_init_args;
+
+static VALUE scan_ctx_init_protected(VALUE arg)
+{
+  scan_ctx_init_args *args = (scan_ctx_init_args *)arg;
+  scan_ctx_init(args->ctx, args->path_ary);
+  return Qnil;
 }
 
 // resets temporary values in the selector
@@ -742,13 +754,10 @@ static VALUE selector_alloc(VALUE self)
 static VALUE selector_m_initialize(VALUE self, VALUE path_ary)
 {
   scan_ctx *ctx;
-  VALUE scan_ctx_init_err;
   TypedData_Get_Struct(self, scan_ctx, &selector_type, ctx);
-  scan_ctx_init_err = scan_ctx_init(ctx, path_ary);
-  if (scan_ctx_init_err != Qundef)
-  {
-    rb_exc_raise(scan_ctx_init_err);
-  }
+  if (ctx->paths)
+    rb_raise(rb_eRuntimeError, "selector is already initialized");
+  scan_ctx_init(ctx, path_ary);
   return self;
 }
 
@@ -981,15 +990,18 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   }
   else
   {
-    VALUE scan_ctx_init_err;
+    scan_ctx_init_args init_args;
+    int init_state;
     ctx = ruby_xmalloc(sizeof(scan_ctx));
     ctx->paths = NULL;
-    scan_ctx_init_err = scan_ctx_init(ctx, path_ary);
-    if (scan_ctx_init_err != Qundef)
+    init_args.ctx = ctx;
+    init_args.path_ary = path_ary;
+    rb_protect(scan_ctx_init_protected, (VALUE)&init_args, &init_state);
+    if (init_state)
     {
       scan_ctx_free(ctx);
       ruby_xfree(ctx);
-      rb_exc_raise(scan_ctx_init_err);
+      rb_jump_tag(init_state);
     }
   }
   // Need to keep a ref to result array on the stack to prevent it from being GC-ed
