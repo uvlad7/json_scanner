@@ -4,6 +4,7 @@
 #include "ruby.h"
 #include "ruby/intern.h"
 #include "ruby/version.h"
+#include <stdint.h>
 #include <yajl/yajl_parse.h>
 #include <yajl/yajl_gen.h>
 
