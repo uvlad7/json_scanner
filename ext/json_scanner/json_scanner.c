@@ -206,24 +206,16 @@ static void scan_ctx_clear_path_keys(scan_ctx *ctx)
 static size_t scan_ctx_get_string_length(scan_ctx *ctx)
 {
   size_t end = scan_ctx_get_bytes_consumed(ctx);
-  size_t pos;
+  size_t pos = end - 1;
 
-  if (end < 2)
-    return end;
-  pos = end - 1;
-
-  while (pos > 0)
+  // YAJL has already validated that every quote inside the string is escaped.
+  while (--pos > 0)
   {
-    size_t quote_pos = --pos;
-    if (ctx->json_text[quote_pos] != '"')
-      continue;
-    while (pos > 0 && ctx->json_text[pos - 1] == '\\')
-      pos--;
-    // YAJL treats a quote as escaped only after an odd run of backslashes.
-    if ((quote_pos - pos) % 2 == 0)
-      return end - quote_pos;
+    if (ctx->json_text[pos] == '"' && ctx->json_text[pos - 1] != '\\')
+      return end - pos;
   }
 
+  // The string starts at the beginning of the JSON input.
   return end;
 }
 
