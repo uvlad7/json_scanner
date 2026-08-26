@@ -335,18 +335,21 @@ static void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
       {
         VALUE range_beg, range_end;
         long end_val;
-        int open_ended;
-        if (rb_range_values(entry, &range_beg, &range_end, &open_ended) != Qtrue)
+        int exclude_end;
+        if (rb_range_values(entry, &range_beg, &range_end, &exclude_end) != Qtrue)
           rb_raise(rb_eArgError, "path elements must be strings, integers, or ranges");
         if (range_beg != any_key_sym || range_end != any_key_sym)
         {
           if (NUM2LONG(range_beg) < 0L)
             rb_raise(rb_eArgError, "range start must be positive");
-          end_val = NUM2LONG(range_end);
-          if (end_val < -1L)
-            rb_raise(rb_eArgError, "range end must be positive or -1");
-          if (end_val == -1L && open_ended)
-            rb_raise(rb_eArgError, "range with -1 end must be closed");
+          if (!NIL_P(range_end))
+          {
+            end_val = NUM2LONG(range_end);
+            if (end_val < -1L)
+              rb_raise(rb_eArgError, "range end must be positive or -1");
+            if (end_val == -1L && exclude_end)
+              rb_raise(rb_eArgError, "range with -1 end must be closed");
+          }
         }
       }
       }
@@ -419,8 +422,8 @@ static void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
       default:
       {
         VALUE range_beg, range_end;
-        int open_ended;
-        rb_range_values(entry, &range_beg, &range_end, &open_ended);
+        int exclude_end;
+        rb_range_values(entry, &range_beg, &range_end, &exclude_end);
         if (range_beg == any_key_sym && range_end == any_key_sym)
         {
           paths[i].elems[j].type = MATCHER_ANY_KEY;
@@ -429,13 +432,21 @@ static void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
         {
           paths[i].elems[j].type = MATCHER_INDEX_RANGE;
           paths[i].elems[j].value.range.start = NUM2LONG(range_beg);
-          paths[i].elems[j].value.range.end = NUM2LONG(range_end);
-          // (value..-1) works as expected, (value...-1) is forbidden above
-          if (paths[i].elems[j].value.range.end == -1L)
+          // Inclusive and exclusive ranges with a nil end are both endless.
+          if (NIL_P(range_end))
+          {
             paths[i].elems[j].value.range.end = LONG_MAX;
-          // -1 here is fine, so, (0...0) works just as expected - doesn't match anything
-          if (open_ended)
-            paths[i].elems[j].value.range.end--;
+          }
+          else
+          {
+            paths[i].elems[j].value.range.end = NUM2LONG(range_end);
+            // (value..-1) works as expected, (value...-1) is forbidden above
+            if (paths[i].elems[j].value.range.end == -1L)
+              paths[i].elems[j].value.range.end = LONG_MAX;
+            // -1 here is fine, so, (0...0) works just as expected - doesn't match anything
+            if (exclude_end)
+              paths[i].elems[j].value.range.end--;
+          }
         }
       }
       }
