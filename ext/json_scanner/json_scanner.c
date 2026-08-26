@@ -214,14 +214,14 @@ static size_t scan_ctx_get_string_length(scan_ctx *ctx)
 
   while (pos > 0)
   {
-    size_t backslashes = 0;
-    pos--;
-    if (ctx->json_text[pos] != '"')
+    size_t quote_pos = --pos;
+    if (ctx->json_text[quote_pos] != '"')
       continue;
-    for (size_t i = pos; i > 0 && ctx->json_text[i - 1] == '\\'; i--)
-      backslashes++;
-    if (backslashes % 2 == 0)
-      return end - pos;
+    while (pos > 0 && ctx->json_text[pos - 1] == '\\')
+      pos--;
+    // YAJL treats a quote as escaped only after an odd run of backslashes.
+    if ((quote_pos - pos) % 2 == 0)
+      return end - quote_pos;
   }
 
   return end;
