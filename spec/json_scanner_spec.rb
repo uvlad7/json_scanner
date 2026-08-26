@@ -237,6 +237,52 @@ RSpec.describe JsonScanner do
       expect(described_class.scan('"\\u0061"', [[]])).to eq([[[0, 8, :string]]])
       expect(described_class.scan('"a\\nb"', [[]])).to eq([[[0, 6, :string]]])
       expect(described_class.scan('"\\uD83D\\uDE01"', [[]])).to eq([[[0, 14, :string]]])
+      expect(
+        described_class.scan('"\\"\\\\\\/\\b\\f\\n\\r\\t\\u0061\\uD83D\\uDE01"', [[]]),
+      ).to eq([[[0, 36, :string]]])
+      expect(described_class.scan('"\\n\\u0061\\""', [[]])).to eq([[[0, 12, :string]]])
+    end
+
+    it "returns source byte ranges for escaped quotes in every position" do
+      cases = [
+        ['"a\\"b\\n\\u0063\\\\"', [], [0, 16, :string]],
+        ['["a\\"b\\t\\u0064\\\\",0]', [0], [1, 17, :string]],
+        ['["prior\\"x",0,"a\\"b\\r\\u0065\\\\",1]', [2], [14, 30, :string]],
+        ['{"k\\u0065y":"a\\"b\\f\\u0066\\\\"}', ["key"], [12, 28, :string]],
+        ['[[{"key":"a\\"b\\b\\u0067\\\\"}]]', [0, 0, "key"], [9, 25, :string]],
+      ]
+
+      cases.each do |json, path, point|
+        expect(described_class.scan(json, [path])).to eq([[point]])
+      end
+    end
+
+    it "returns source byte ranges for unescaped strings" do
+      cases = [
+        ['"plain"', [], [0, 7, :string]],
+        ['["plain",0]', [0], [1, 8, :string]],
+        ['["prior",0,"plain",1]', [2], [11, 18, :string]],
+        ['{"key":"plain"}', ["key"], [7, 14, :string]],
+        ['""', [], [0, 2, :string]],
+        ['{"key":""}', ["key"], [7, 9, :string]],
+        ['"Руби"', [], [0, 10, :string]],
+      ]
+
+      cases.each do |json, path, point|
+        expect(described_class.scan(json, [path])).to eq([[point]])
+      end
+    end
+
+    it "returns source byte ranges for escaped strings after comments" do
+      expect(
+        described_class.scan('/* "before" */ "a\\"b\\t\\u0069\\\\"', [[]], allow_comments: true),
+      ).to eq([[[15, 31, :string]]])
+    end
+
+    it "returns source byte ranges for escaped strings among multiple roots" do
+      expect(
+        described_class.scan('0 "a\\"b\\n\\u0068\\\\" true', [[]], allow_multiple_values: true),
+      ).to eq([[[0, 1, :number], [2, 18, :string], [19, 23, :boolean]]])
     end
 
     it "distinguishes keys containing null bytes" do
