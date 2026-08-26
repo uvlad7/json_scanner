@@ -42,6 +42,13 @@ typedef struct
 
 typedef struct
 {
+  const char *val;
+  size_t len;
+  int owned;
+} path_key_t;
+
+typedef struct
+{
   long start;
   long end;
 } range_t;
@@ -60,10 +67,9 @@ typedef struct
 typedef struct
 {
   enum path_type type;
-  int key_owned;
   union
   {
-    hashkey_t key;
+    path_key_t key;
     long index;
   } value;
 } path_elem_t;
@@ -162,7 +168,7 @@ static inline void scan_ctx_save_bytes_consumed(scan_ctx *ctx)
   ctx->yajl_bytes_consumed += yajl_get_bytes_consumed(ctx->handle);
 }
 
-static int scan_ctx_ptr_in_json(scan_ctx *ctx, const unsigned char *ptr, size_t len)
+static inline int scan_ctx_ptr_in_json(scan_ctx *ctx, const unsigned char *ptr, size_t len)
 {
   uintptr_t json_addr = (uintptr_t)ctx->json_text;
   uintptr_t ptr_addr = (uintptr_t)ptr;
@@ -174,14 +180,19 @@ static int scan_ctx_ptr_in_json(scan_ctx *ctx, const unsigned char *ptr, size_t 
   return offset <= ctx->json_text_len && len <= ctx->json_text_len - offset;
 }
 
-static void path_elem_release_key(path_elem_t *elem)
+static inline void path_elem_init_key(path_elem_t *elem)
 {
-  if (!elem->key_owned)
-    return;
-  ruby_xfree((void *)elem->value.key.val);
+  elem->type = PATH_KEY;
   elem->value.key.val = NULL;
   elem->value.key.len = 0;
-  elem->key_owned = false;
+  elem->value.key.owned = false;
+}
+
+static inline void path_elem_release_key(path_elem_t *elem)
+{
+  if (elem->type == PATH_KEY && elem->value.key.owned)
+    ruby_xfree((void *)elem->value.key.val);
+  path_elem_init_key(elem);
 }
 
 static void scan_ctx_clear_path_keys(scan_ctx *ctx)
@@ -261,8 +272,11 @@ void scan_ctx_debug(scan_ctx *ctx)
     switch (ctx->current_path[i].type)
     {
     case PATH_KEY:
-      fprintf(stderr, "'%.*s'", (int)ctx->current_path[i].value.key.len, ctx->current_path[i].value.key.val);
+    {
+      const path_key_t *key = &ctx->current_path[i].value.key;
+      fprintf(stderr, "'%.*s' (%s)", (int)key->len, key->val, key->owned ? "owned" : "borrowed");
       break;
+    }
     case PATH_INDEX:
       fprintf(stderr, "%ld", ctx->current_path[i].value.index);
       break;
@@ -441,7 +455,11 @@ static void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
   ctx->paths = paths;
   ctx->paths_len = path_ary_len;
   ctx->current_path = (path_elem_t *)((unsigned char *)arena + current_path_off);
-  memset(ctx->current_path, 0, checked_size_mul(ctx->max_path_len, sizeof(path_elem_t)));
+  for (int i = 0; i < ctx->max_path_len; i++)
+  {
+    // Activate and initialize the key union member before release may inspect it.
+    path_elem_init_key(&ctx->current_path[i]);
+  }
   ctx->starts = (size_t *)((unsigned char *)arena + starts_off);
 }
 
@@ -696,10 +714,7 @@ static int scan_on_start_object(void *ctx)
   increment_arr_index(sctx);
   sctx->starts[sctx->current_path_len] = scan_ctx_get_bytes_consumed(sctx) - 1;
   if (sctx->current_path_len < sctx->max_path_len)
-  {
     path_elem_release_key(&sctx->current_path[sctx->current_path_len]);
-    sctx->current_path[sctx->current_path_len].type = PATH_KEY;
-  }
   sctx->current_path_len++;
   return true;
 }
@@ -711,23 +726,22 @@ static int scan_on_key(void *ctx, const unsigned char *key, size_t len)
   path_elem_t *path_elem;
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
-  // Can't be called without scan_on_start_object being called before
-  // So current_path_len at least 1 and key.type is set to PATH_KEY;
+  // Can't be called without scan_on_start_object being called before,
+  // so current_path_len is at least 1.
   path_elem = &sctx->current_path[sctx->current_path_len - 1];
   path_elem_release_key(path_elem);
-  path_elem->type = PATH_KEY;
   path_elem->value.key.len = len;
   if (scan_ctx_ptr_in_json(sctx, key, len))
   {
     path_elem->value.key.val = (const char *)key;
-    path_elem->key_owned = false;
+    path_elem->value.key.owned = false;
   }
   else
   {
     char *key_copy = ruby_xmalloc(len ? len : 1);
     memcpy(key_copy, key, len);
     path_elem->value.key.val = key_copy;
-    path_elem->key_owned = true;
+    path_elem->value.key.owned = true;
   }
   return true;
 }
@@ -796,7 +810,7 @@ static size_t selector_size(const void *data)
   {
     for (int i = 0; i < ctx->max_path_len; i++)
     {
-      if (ctx->current_path[i].key_owned)
+      if (ctx->current_path[i].type == PATH_KEY && ctx->current_path[i].value.key.owned)
         res += ctx->current_path[i].value.key.len ? ctx->current_path[i].value.key.len : 1;
     }
   }
