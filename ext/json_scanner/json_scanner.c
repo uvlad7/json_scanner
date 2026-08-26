@@ -517,32 +517,31 @@ static VALUE create_point(scan_ctx *sctx, value_type type, size_t length)
   VALUE values[3], point;
   size_t curr_pos = scan_ctx_get_bytes_consumed(sctx);
   point = rb_ary_new_capa(3);
-  values[1] = ULL2NUM(curr_pos);
+  values[1] = SIZET2NUM(curr_pos);
   switch (type)
   {
-    /* FIXME: size_t can be longer than ulong */
   case null_value:
-    values[0] = ULL2NUM(curr_pos - length);
+    values[0] = SIZET2NUM(curr_pos - length);
     values[2] = null_sym;
     break;
   case boolean_value:
-    values[0] = ULL2NUM(curr_pos - length);
+    values[0] = SIZET2NUM(curr_pos - length);
     values[2] = boolean_sym;
     break;
   case number_value:
-    values[0] = ULL2NUM(curr_pos - length);
+    values[0] = SIZET2NUM(curr_pos - length);
     values[2] = number_sym;
     break;
   case string_value:
-    values[0] = ULL2NUM(curr_pos - length);
+    values[0] = SIZET2NUM(curr_pos - length);
     values[2] = string_sym;
     break;
   case object_value:
-    values[0] = ULL2NUM(sctx->starts[sctx->current_path_len]);
+    values[0] = SIZET2NUM(sctx->starts[sctx->current_path_len]);
     values[2] = object_sym;
     break;
   case array_value:
-    values[0] = ULL2NUM(sctx->starts[sctx->current_path_len]);
+    values[0] = SIZET2NUM(sctx->starts[sctx->current_path_len]);
     values[2] = array_sym;
     break;
   }
