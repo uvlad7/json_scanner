@@ -89,7 +89,6 @@ typedef struct
   VALUE roots_info_list;
   // by depth
   size_t *starts;
-  // VALUE rb_err;
   yajl_handle handle;
   size_t yajl_bytes_consumed;
 } scan_ctx;
@@ -232,7 +231,7 @@ void scan_ctx_debug(scan_ctx *ctx)
 }
 
 // path_ary must be RB_GC_GUARD-ed by the caller
-static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
+static void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
 {
   int path_ary_len;
   paths_t *paths;
@@ -275,16 +274,16 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
         long end_val;
         int open_ended;
         if (rb_range_values(entry, &range_beg, &range_end, &open_ended) != Qtrue)
-          return rb_exc_new_cstr(rb_eArgError, "path elements must be strings, integers, or ranges");
+          rb_raise(rb_eArgError, "path elements must be strings, integers, or ranges");
         if (range_beg != any_key_sym || range_end != any_key_sym)
         {
           if (NUM2LONG(range_beg) < 0L)
-            return rb_exc_new_cstr(rb_eArgError, "range start must be positive");
+            rb_raise(rb_eArgError, "range start must be positive");
           end_val = NUM2LONG(range_end);
           if (end_val < -1L)
-            return rb_exc_new_cstr(rb_eArgError, "range end must be positive or -1");
+            rb_raise(rb_eArgError, "range end must be positive or -1");
           if (end_val == -1L && open_ended)
-            return rb_exc_new_cstr(rb_eArgError, "range with -1 end must be closed");
+            rb_raise(rb_eArgError, "range with -1 end must be closed");
         }
       }
       }
@@ -386,7 +385,19 @@ static VALUE scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
   ctx->paths_len = path_ary_len;
   ctx->current_path = (path_elem_t *)((unsigned char *)arena + current_path_off);
   ctx->starts = (size_t *)((unsigned char *)arena + starts_off);
-  return Qundef; // no error
+}
+
+typedef struct
+{
+  scan_ctx *ctx;
+  VALUE path_ary;
+} scan_ctx_init_args;
+
+static VALUE scan_ctx_init_protected(VALUE arg)
+{
+  scan_ctx_init_args *args = (scan_ctx_init_args *)arg;
+  scan_ctx_init(args->ctx, args->path_ary);
+  return Qnil;
 }
 
 // resets temporary values in the selector
@@ -394,7 +405,6 @@ static void scan_ctx_reset(scan_ctx *ctx, VALUE points_list, VALUE roots_info_li
 {
   // TODO: reset matched_depth if implemented
   ctx->current_path_len = 0;
-  // ctx->rb_err = Qnil;
   ctx->handle = NULL;
   ctx->yajl_bytes_consumed = 0;
   ctx->points_list = points_list;
@@ -434,17 +444,15 @@ typedef enum
   array_value,
 } value_type;
 
-// noexcept
 static VALUE create_point(scan_ctx *sctx, value_type type, size_t length)
 {
   VALUE values[3], point;
   size_t curr_pos = scan_ctx_get_bytes_consumed(sctx);
   point = rb_ary_new_capa(3);
-  // noexcept
   values[1] = ULL2NUM(curr_pos);
   switch (type)
   {
-    // FIXME: size_t can be longer than ulong
+    /* FIXME: size_t can be longer than ulong */
   case null_value:
     values[0] = ULL2NUM(curr_pos - length);
     values[2] = null_sym;
@@ -470,12 +478,10 @@ static VALUE create_point(scan_ctx *sctx, value_type type, size_t length)
     values[2] = array_sym;
     break;
   }
-  // rb_ary_cat raise only in case of a frozen array or if len is too long
   rb_ary_cat(point, values, 3);
   return point;
 }
 
-// noexcept
 static VALUE create_path(scan_ctx *sctx)
 {
   VALUE path = rb_ary_new_capa(sctx->current_path_len);
@@ -564,8 +570,6 @@ static void save_point(scan_ctx *sctx, value_type type, size_t length)
           point = rb_ary_new_from_args(2, path, point);
         }
       }
-      // rb_ary_push raises only in case of a frozen array, which is not the case
-      // rb_ary_entry is safe
       rb_ary_push(rb_ary_entry(sctx->points_list, i), point);
     }
   }
@@ -750,13 +754,10 @@ static VALUE selector_alloc(VALUE self)
 static VALUE selector_m_initialize(VALUE self, VALUE path_ary)
 {
   scan_ctx *ctx;
-  VALUE scan_ctx_init_err;
   TypedData_Get_Struct(self, scan_ctx, &selector_type, ctx);
-  scan_ctx_init_err = scan_ctx_init(ctx, path_ary);
-  if (scan_ctx_init_err != Qundef)
-  {
-    rb_exc_raise(scan_ctx_init_err);
-  }
+  if (ctx->paths)
+    rb_raise(rb_eRuntimeError, "selector is already initialized");
+  scan_ctx_init(ctx, path_ary);
   return self;
 }
 
@@ -882,6 +883,57 @@ static yajl_callbacks scan_callbacks = {
     scan_on_start_array,
     scan_on_end_array};
 
+typedef struct
+{
+  yajl_handle handle;
+  const unsigned char *json_text;
+  size_t json_text_len;
+  scan_ctx *ctx;
+  int verbose;
+} parse_args;
+
+typedef struct
+{
+  yajl_handle handle;
+  unsigned char *message;
+} error_message_args;
+
+static VALUE build_error_message(VALUE arg)
+{
+  error_message_args *args = (error_message_args *)arg;
+  return rb_utf8_str_new_cstr(args->message ? (char *)args->message : "unknown yajl error");
+}
+
+static VALUE free_error_message(VALUE arg)
+{
+  error_message_args *args = (error_message_args *)arg;
+  if (args->message)
+    yajl_free_error(args->handle, args->message);
+  return Qnil;
+}
+
+static VALUE parse_and_check(VALUE arg)
+{
+  parse_args *args = (parse_args *)arg;
+  yajl_status status = yajl_parse(args->handle, args->json_text, args->json_text_len);
+  if (status == yajl_status_ok)
+  {
+    scan_ctx_save_bytes_consumed(args->ctx);
+    status = yajl_complete_parse(args->handle);
+  }
+  if (status != yajl_status_ok)
+  {
+    error_message_args error_args = {
+        args->handle,
+        yajl_get_error(args->handle, args->verbose, args->json_text, args->json_text_len)};
+    VALUE message = rb_ensure(build_error_message, (VALUE)&error_args, free_error_message, (VALUE)&error_args);
+    VALUE exception = rb_exc_new_str(rb_eJsonScannerParseError, message);
+    rb_ivar_set(exception, rb_iv_bytes_consumed, ULL2NUM(scan_ctx_get_bytes_consumed(args->ctx)));
+    rb_exc_raise(exception);
+  }
+  return Qnil;
+}
+
 // def scan(json_str, path_arr, opts)
 // opts
 // with_path: false, verbose_error: false, symbolize_path_keys: false, with_roots_info: false
@@ -895,12 +947,9 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   char *json_text;
   size_t json_text_len;
   yajl_handle handle;
-  yajl_status stat;
   scan_ctx *ctx;
   int free_ctx = true;
-  VALUE err_msg = Qnil, bytes_consumed = Qnil, result, roots_info_result = Qundef;
-  // Turned out callbacks can't raise exceptions
-  // VALUE callback_err;
+  VALUE result, roots_info_result = Qundef;
   rb_scan_args(argc, argv, "21", &json_str, &path_ary, &rb_options);
   rb_check_type(json_str, T_STRING);
   // rb_io_write(rb_stderr, rb_sprintf("with_path_flag: %" PRIsVALUE " \n", with_path_flag));
@@ -941,15 +990,18 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   }
   else
   {
-    VALUE scan_ctx_init_err;
+    scan_ctx_init_args init_args;
+    int init_state;
     ctx = ruby_xmalloc(sizeof(scan_ctx));
     ctx->paths = NULL;
-    scan_ctx_init_err = scan_ctx_init(ctx, path_ary);
-    if (scan_ctx_init_err != Qundef)
+    init_args.ctx = ctx;
+    init_args.path_ary = path_ary;
+    rb_protect(scan_ctx_init_protected, (VALUE)&init_args, &init_state);
+    if (init_state)
     {
       scan_ctx_free(ctx);
       ruby_xfree(ctx);
-      rb_exc_raise(scan_ctx_init_err);
+      rb_jump_tag(init_state);
     }
   }
   // Need to keep a ref to result array on the stack to prevent it from being GC-ed
@@ -962,6 +1014,15 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   // scan_ctx_debug(ctx);
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
+  if (!handle)
+  {
+    if (free_ctx)
+    {
+      scan_ctx_free(ctx);
+      ruby_xfree(ctx);
+    }
+    rb_raise(rb_eNoMemError, "failed to allocate yajl handle");
+  }
   if (SCAN_OPTION_IS_SET(&options, allow_comments))
     yajl_config(handle, yajl_allow_comments, SCAN_OPTION(&options, allow_comments));
   if (SCAN_OPTION_IS_SET(&options, dont_validate_strings))
@@ -973,54 +1034,34 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   if (SCAN_OPTION_IS_SET(&options, allow_partial_values))
     yajl_config(handle, yajl_allow_partial_values, SCAN_OPTION(&options, allow_partial_values));
   ctx->handle = handle;
-  stat = yajl_parse(handle, (unsigned char *)json_text, json_text_len);
-  if (stat == yajl_status_ok)
   {
-    scan_ctx_save_bytes_consumed(ctx);
-    stat = yajl_complete_parse(handle);
+    parse_args args = {
+        handle,
+        (const unsigned char *)json_text,
+        json_text_len,
+        ctx,
+        SCAN_OPTION(&options, verbose_error)};
+    int parse_state;
+    rb_protect(parse_and_check, (VALUE)&args, &parse_state);
+    if (parse_state)
+    {
+      /* Ruby exception from callbacks or parse error;
+       * clean up yajl + ctx before re-raising */
+      if (free_ctx)
+      {
+        scan_ctx_free(ctx);
+        ruby_xfree(ctx);
+      }
+      yajl_free(handle);
+      rb_jump_tag(parse_state);
+    }
   }
-
-  if (stat != yajl_status_ok)
-  {
-    char *str = (char *)yajl_get_error(handle, SCAN_OPTION(&options, verbose_error), (unsigned char *)json_text, json_text_len);
-    err_msg = rb_utf8_str_new_cstr(str);
-    bytes_consumed = ULL2NUM(scan_ctx_get_bytes_consumed(ctx));
-    yajl_free_error(handle, (unsigned char *)str);
-  }
-  // // Needed when yajl_allow_partial_values is set
-  // if (ctx->current_path_len > 0)
-  // {
-  //   if (ctx->current_path_len > ctx->max_path_len)
-  //     ctx->current_path_len = ctx->max_path_len;
-  //   for (int i = ctx->current_path_len - 1; i > 0; i--)
-  //   {
-  //     switch (ctx->current_path[i].type)
-  //     {
-  //     case PATH_KEY:
-  //       scan_on_end_object(ctx);
-  //       break;
-  //     case PATH_INDEX:
-  //       scan_on_end_array(ctx);
-  //       break;
-  //     }
-  //   }
-  // }
-  // callback_err = ctx->rb_err;
   if (free_ctx)
   {
-    // fprintf(stderr, "free_ctx\n");
     scan_ctx_free(ctx);
     ruby_xfree(ctx);
   }
   yajl_free(handle);
-  if (err_msg != Qnil)
-  {
-    VALUE err = rb_exc_new_str(rb_eJsonScannerParseError, err_msg);
-    rb_ivar_set(err, rb_iv_bytes_consumed, bytes_consumed);
-    rb_exc_raise(err);
-  }
-  // if (callback_err != Qnil)
-  //   rb_exc_raise(callback_err);
   if (roots_info_result != Qundef)
   {
     result = rb_ary_new_from_args(2, result, roots_info_result);
