@@ -491,6 +491,20 @@ static void scan_ctx_free(scan_ctx *ctx)
     ruby_xfree(ctx->paths);
 }
 
+static inline void scan_cleanup(scan_ctx *ctx, int free_ctx, yajl_handle handle)
+{
+  if (free_ctx)
+  {
+    scan_ctx_free(ctx);
+    ruby_xfree(ctx);
+  }
+  else
+  {
+    scan_ctx_clear_path_keys(ctx);
+  }
+  yajl_free(handle);
+}
+
 // noexcept
 static inline void increment_arr_index(scan_ctx *sctx)
 {
@@ -1142,29 +1156,11 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
     {
       /* Ruby exception from callbacks or parse error;
        * clean up yajl + ctx before re-raising */
-      if (free_ctx)
-      {
-        scan_ctx_free(ctx);
-        ruby_xfree(ctx);
-      }
-      else
-      {
-        scan_ctx_clear_path_keys(ctx);
-      }
-      yajl_free(handle);
+      scan_cleanup(ctx, free_ctx, handle);
       rb_jump_tag(parse_state);
     }
   }
-  if (free_ctx)
-  {
-    scan_ctx_free(ctx);
-    ruby_xfree(ctx);
-  }
-  else
-  {
-    scan_ctx_clear_path_keys(ctx);
-  }
-  yajl_free(handle);
+  scan_cleanup(ctx, free_ctx, handle);
   if (roots_info_result != Qundef)
   {
     result = rb_ary_new_from_args(2, result, roots_info_result);
