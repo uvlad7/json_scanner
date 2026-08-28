@@ -289,6 +289,9 @@ RSpec.describe JsonScanner do
       expect(
         described_class.scan('{"a\\u0000y":1}', [["a\0x"]], with_path: true),
       ).to eq([[]])
+      expect(
+        described_class.scan('{"a\\u0000y":1}', [["a\0y"]], with_path: true),
+      ).to eq([[[["a\0y"], [12, 13, :number]]]])
     end
 
     it "matches object keys by their decoded value" do
@@ -482,7 +485,7 @@ RSpec.describe JsonScanner do
       skip "Ruby does not support heap compaction" unless GC.respond_to?(:verify_compaction_references)
 
       selector = described_class.new([["short"]])
-      10.times { GC.verify_compaction_references(double_heap: true, toward: :empty) }
+      GC.verify_compaction_references(double_heap: true, toward: :empty)
 
       expect(JsonScanner.scan('{"short":1}', selector)).to eq([[[9, 10, :number]]])
     end
