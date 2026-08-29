@@ -131,6 +131,22 @@ RSpec.describe JsonScanner do
       )
     end
 
+    it "supports endless index ranges" do
+      begin
+        inclusive_endless = (1..nil)
+        exclusive_endless = (1...nil)
+      rescue ArgumentError
+        skip "endless ranges are not supported by this Ruby version"
+      end
+
+      json = "[0,1,2,3]"
+      expected = [[[3, 4, :number], [5, 6, :number], [7, 8, :number]]]
+
+      expect(described_class.scan(json, [[(1..-1)]])).to eq(expected)
+      expect(described_class.scan(json, [[inclusive_endless]])).to eq(expected)
+      expect(described_class.scan(json, [[exclusive_endless]])).to eq(expected)
+    end
+
     it "allows only positive or -1 values" do
       expect do
         described_class.scan("[[1,2],[3,4]]", [[(0...-1)]])
