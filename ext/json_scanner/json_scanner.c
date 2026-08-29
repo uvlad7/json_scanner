@@ -9,6 +9,8 @@ ID rb_iv_bytes_consumed;
 #define SCAN_KWARGS_SIZE 9
 ID scan_kwargs_table[SCAN_KWARGS_SIZE];
 
+#include "options.h"
+
 VALUE null_sym;
 VALUE boolean_sym;
 VALUE number_sym;
@@ -101,62 +103,6 @@ typedef struct
   const unsigned char *json_text;
   size_t json_text_len;
 } scan_ctx;
-
-typedef struct
-{
-  int with_path;
-  int verbose_error;
-  int allow_comments;
-  int dont_validate_strings;
-  int allow_trailing_garbage;
-  int allow_multiple_values;
-  int allow_partial_values;
-  int symbolize_path_keys;
-  int with_roots_info;
-} scan_options;
-#define SCAN_OPTION_VALUE_MASK 1
-#define SCAN_OPTION_SET_MASK (1 << 1)
-#define SCAN_OPTION(options, field) ((options)->field & SCAN_OPTION_VALUE_MASK)
-#define SCAN_OPTION_IS_SET(options, field) ((options)->field & SCAN_OPTION_SET_MASK)
-#define SCAN_OPTION_SET(options, field, value) ((options)->field = ((value) & SCAN_OPTION_VALUE_MASK) | SCAN_OPTION_SET_MASK)
-#define SCAN_OPTION_FALSE(options, field) \
-  (!SCAN_OPTION(options, field) && ((options)->field & SCAN_OPTION_SET_MASK))
-
-static void scan_options_init(scan_options *options, VALUE kwargs)
-{
-  options->with_path = 0;
-  options->verbose_error = 0;
-  options->allow_comments = 0;
-  options->dont_validate_strings = 0;
-  options->allow_trailing_garbage = 0;
-  options->allow_multiple_values = 0;
-  options->allow_partial_values = 0;
-  options->symbolize_path_keys = 0;
-  options->with_roots_info = 0;
-  if (kwargs != Qnil)
-  {
-    VALUE kwargs_values[SCAN_KWARGS_SIZE];
-    rb_get_kwargs(kwargs, scan_kwargs_table, 0, SCAN_KWARGS_SIZE, kwargs_values);
-    if (kwargs_values[0] != Qundef)
-      SCAN_OPTION_SET(options, with_path, RTEST(kwargs_values[0]));
-    if (kwargs_values[1] != Qundef)
-      SCAN_OPTION_SET(options, verbose_error, RTEST(kwargs_values[1]));
-    if (kwargs_values[2] != Qundef)
-      SCAN_OPTION_SET(options, allow_comments, RTEST(kwargs_values[2]));
-    if (kwargs_values[3] != Qundef)
-      SCAN_OPTION_SET(options, dont_validate_strings, RTEST(kwargs_values[3]));
-    if (kwargs_values[4] != Qundef)
-      SCAN_OPTION_SET(options, allow_trailing_garbage, RTEST(kwargs_values[4]));
-    if (kwargs_values[5] != Qundef)
-      SCAN_OPTION_SET(options, allow_multiple_values, RTEST(kwargs_values[5]));
-    if (kwargs_values[6] != Qundef)
-      SCAN_OPTION_SET(options, allow_partial_values, RTEST(kwargs_values[6]));
-    if (kwargs_values[7] != Qundef)
-      SCAN_OPTION_SET(options, symbolize_path_keys, RTEST(kwargs_values[7]));
-    if (kwargs_values[8] != Qundef)
-      SCAN_OPTION_SET(options, with_roots_info, RTEST(kwargs_values[8]));
-  }
-}
 
 static inline size_t scan_ctx_get_bytes_consumed(scan_ctx *ctx)
 {
@@ -794,186 +740,8 @@ static int scan_on_end_array(void *ctx)
   return true;
 }
 
-static void selector_free(void *data)
-{
-  scan_ctx_free((scan_ctx *)data);
-  ruby_xfree(data);
-}
+#include "selector.h"
 
-static size_t selector_size(const void *data)
-{
-  // see ObjectSpace.memsize_of
-  scan_ctx *ctx = (scan_ctx *)data;
-  size_t res = sizeof(scan_ctx);
-  // current_path
-  if (ctx->current_path != NULL)
-    res += ctx->max_path_len * sizeof(path_elem_t);
-  // starts
-  if (ctx->starts != NULL)
-    res += ctx->max_path_len * sizeof(size_t);
-  if (ctx->current_path != NULL)
-  {
-    for (int i = 0; i < ctx->max_path_len; i++)
-    {
-      if (ctx->current_path[i].type == PATH_KEY && ctx->current_path[i].value.key.owned)
-        res += ctx->current_path[i].value.key.len ? ctx->current_path[i].value.key.len : 1;
-    }
-  }
-  if (ctx->paths != NULL)
-  {
-    res += ctx->paths_len * sizeof(paths_t);
-    for (int i = 0; i < ctx->paths_len; i++)
-    {
-      res += ctx->paths[i].len * sizeof(path_matcher_elem_t);
-      for (int j = 0; j < ctx->paths[i].len; j++)
-      {
-        if (ctx->paths[i].elems[j].type == MATCHER_KEY)
-          res += ctx->paths[i].elems[j].value.key.len;
-      }
-    }
-  }
-  return res;
-}
-
-static const rb_data_type_t selector_type = {
-    .wrap_struct_name = "json_scanner_selector",
-    .function = {
-        .dfree = selector_free,
-        .dsize = selector_size,
-    },
-    .flags = RUBY_TYPED_FREE_IMMEDIATELY,
-};
-
-static VALUE selector_alloc(VALUE self)
-{
-  scan_ctx *ctx = ruby_xmalloc(sizeof(scan_ctx));
-  ctx->paths = NULL;
-  ctx->paths_len = 0;
-  ctx->current_path = NULL;
-  ctx->max_path_len = 0;
-  ctx->starts = NULL;
-  scan_ctx_reset(ctx, Qundef, Qundef, false, false);
-  return TypedData_Wrap_Struct(self, &selector_type, ctx);
-}
-
-static VALUE selector_m_initialize(VALUE self, VALUE path_ary)
-{
-  scan_ctx *ctx;
-  TypedData_Get_Struct(self, scan_ctx, &selector_type, ctx);
-  if (ctx->paths)
-    rb_raise(rb_eRuntimeError, "selector is already initialized");
-  scan_ctx_init(ctx, path_ary);
-  return self;
-}
-
-static VALUE selector_m_inspect(VALUE self)
-{
-  scan_ctx *ctx;
-  VALUE res;
-  TypedData_Get_Struct(self, scan_ctx, &selector_type, ctx);
-  res = rb_sprintf("#<%" PRIsVALUE " [", rb_class_name(CLASS_OF(self)));
-  for (int i = 0; ctx->paths && i < ctx->paths_len; i++)
-  {
-    rb_str_buf_cat_ascii(res, "[");
-    for (int j = 0; j < ctx->paths[i].len; j++)
-    {
-      switch (ctx->paths[i].elems[j].type)
-      {
-      case MATCHER_KEY:
-        rb_str_catf(res, "'%.*s'", (int)ctx->paths[i].elems[j].value.key.len, ctx->paths[i].elems[j].value.key.val);
-        break;
-      case MATCHER_INDEX:
-        rb_str_catf(res, "%ld", ctx->paths[i].elems[j].value.index);
-        break;
-      case MATCHER_INDEX_RANGE:
-        rb_str_catf(res, "(%ld..%ld)", ctx->paths[i].elems[j].value.range.start, ctx->paths[i].elems[j].value.range.end == LONG_MAX ? -1L : ctx->paths[i].elems[j].value.range.end);
-        break;
-      case MATCHER_ANY_KEY:
-        rb_str_buf_cat_ascii(res, "('*'..'*')");
-        break;
-      }
-      if (j < ctx->paths[i].len - 1)
-        rb_str_buf_cat_ascii(res, ", ");
-    }
-    rb_str_buf_cat_ascii(res, "]");
-    if (i < ctx->paths_len - 1)
-      rb_str_buf_cat_ascii(res, ", ");
-  }
-  rb_str_buf_cat_ascii(res, "]>");
-  return res;
-}
-
-static VALUE selector_m_length(VALUE self)
-{
-  scan_ctx *ctx;
-  TypedData_Get_Struct(self, scan_ctx, &selector_type, ctx);
-  return INT2FIX(ctx->paths_len);
-}
-
-static size_t options_size(const void *data)
-{
-  return sizeof(scan_options);
-}
-
-static const rb_data_type_t options_type = {
-    .wrap_struct_name = "json_scanner_options",
-    .function = {
-        .dfree = RUBY_DEFAULT_FREE,
-        .dsize = options_size,
-    },
-    .flags = RUBY_TYPED_FREE_IMMEDIATELY,
-};
-
-static VALUE options_alloc(VALUE self)
-{
-  // NOT INITIALIZED
-  scan_options *options;
-  return TypedData_Make_Struct(self, scan_options, &options_type, options);
-}
-
-static VALUE options_m_initialize(int argc, VALUE *argv, VALUE self)
-{
-  VALUE kwargs;
-  scan_options *options;
-  TypedData_Get_Struct(self, scan_options, &options_type, options);
-#if RUBY_API_VERSION_MAJOR > 2 || (RUBY_API_VERSION_MAJOR == 2 && RUBY_API_VERSION_MINOR >= 7)
-  rb_scan_args_kw(RB_SCAN_ARGS_LAST_HASH_KEYWORDS, argc, argv, "0:", &kwargs);
-#else
-  rb_scan_args(argc, argv, "0:", &kwargs);
-#endif
-  scan_options_init(options, kwargs);
-  return self;
-}
-
-static VALUE options_m_inspect(VALUE self)
-{
-  VALUE res;
-  scan_options *options;
-  TypedData_Get_Struct(self, scan_options, &options_type, options);
-  res = rb_sprintf("#<%" PRIsVALUE " {", rb_class_name(CLASS_OF(self)));
-  if (SCAN_OPTION_IS_SET(options, with_path))
-    rb_str_catf(res, "with_path: %s, ", SCAN_OPTION(options, with_path) ? "true" : "false");
-  if (SCAN_OPTION_IS_SET(options, verbose_error))
-    rb_str_catf(res, "verbose_error: %s, ", SCAN_OPTION(options, verbose_error) ? "true" : "false");
-  if (SCAN_OPTION_IS_SET(options, allow_comments))
-    rb_str_catf(res, "allow_comments: %s, ", SCAN_OPTION(options, allow_comments) ? "true" : "false");
-  if (SCAN_OPTION_IS_SET(options, dont_validate_strings))
-    rb_str_catf(res, "dont_validate_strings: %s, ", SCAN_OPTION(options, dont_validate_strings) ? "true" : "false");
-  if (SCAN_OPTION_IS_SET(options, allow_trailing_garbage))
-    rb_str_catf(res, "allow_trailing_garbage: %s, ", SCAN_OPTION(options, allow_trailing_garbage) ? "true" : "false");
-  if (SCAN_OPTION_IS_SET(options, allow_multiple_values))
-    rb_str_catf(res, "allow_multiple_values: %s, ", SCAN_OPTION(options, allow_multiple_values) ? "true" : "false");
-  if (SCAN_OPTION_IS_SET(options, allow_partial_values))
-    rb_str_catf(res, "allow_partial_values: %s, ", SCAN_OPTION(options, allow_partial_values) ? "true" : "false");
-  if (SCAN_OPTION_IS_SET(options, symbolize_path_keys))
-    rb_str_catf(res, "symbolize_path_keys: %s, ", SCAN_OPTION(options, symbolize_path_keys) ? "true" : "false");
-  if (SCAN_OPTION_IS_SET(options, with_roots_info))
-    rb_str_catf(res, "with_roots_info: %s, ", SCAN_OPTION(options, with_roots_info) ? "true" : "false");
-  if (RSTRING_END(res)[-1] == ' ')
-    rb_str_resize(res, RSTRING_LEN(res) - 2);
-  rb_str_buf_cat_ascii(res, "}>");
-  return res;
-}
 
 static yajl_callbacks scan_callbacks = {
     scan_on_null,
@@ -1172,16 +940,8 @@ RUBY_FUNC_EXPORTED void
 Init_json_scanner(void)
 {
   rb_mJsonScanner = rb_define_module("JsonScanner");
-  rb_cJsonScannerSelector = rb_define_class_under(rb_mJsonScanner, "Selector", rb_cObject);
-  rb_define_alloc_func(rb_cJsonScannerSelector, selector_alloc);
-  rb_define_method(rb_cJsonScannerSelector, "initialize", selector_m_initialize, 1);
-  rb_define_method(rb_cJsonScannerSelector, "inspect", selector_m_inspect, 0);
-  rb_define_method(rb_cJsonScannerSelector, "length", selector_m_length, 0);
-  rb_define_alias(rb_cJsonScannerSelector, "size", "length");
-  rb_cJsonScannerOptions = rb_define_class_under(rb_mJsonScanner, "Options", rb_cObject);
-  rb_define_alloc_func(rb_cJsonScannerOptions, options_alloc);
-  rb_define_method(rb_cJsonScannerOptions, "initialize", options_m_initialize, -1);
-  rb_define_method(rb_cJsonScannerOptions, "inspect", options_m_inspect, 0);
+  init_selector(rb_mJsonScanner);
+  init_options(rb_mJsonScanner);
   rb_define_const(rb_mJsonScanner, "ANY_INDEX", rb_range_new(INT2FIX(0), INT2FIX(-1), false));
   any_key_sym = rb_id2sym(rb_intern("*"));
   rb_define_const(rb_mJsonScanner, "ANY_KEY", rb_range_new(any_key_sym, any_key_sym, false));
