@@ -86,6 +86,19 @@ emoji_json.byteslice(begin_pos...end_pos)
 # In newer versions, `quirks_mode` is enabled by default.
 JSON.parse(emoji_json.byteslice(begin_pos...end_pos), quirks_mode: true)
 # => "😍"
+
+# Don't decode a string by dropping the first and last bytes: YAJL decodes
+# every JSON escape (\", \\, \/, \b, \f, \n, \r, \t, and \uXXXX, including
+# surrogate pairs), while dropping the quotes leaves those escape bytes
+# untouched. Pass the complete quoted slice to JSON.parse instead.
+escaped_json = '{"value":"\\"\\\\\\/\\b\\f\\n\\r\\t\\u0061\\uD83D\\uDE01"}'
+begin_pos, end_pos, = JsonScanner.scan(escaped_json, [["value"]]).first.first
+quoted_slice = escaped_json.byteslice(begin_pos...end_pos)
+quoted_slice.byteslice(1, quoted_slice.bytesize - 2)
+# => "\\\"\\\\\\/\\b\\f\\n\\r\\t\\u0061\\uD83D\\uDE01"
+JSON.parse(quoted_slice, quirks_mode: true)
+# => "\"\\/\b\f\n\r\ta😁"
+
 # You can also do this
 # emoji_json.force_encoding(Encoding::BINARY)[begin_pos...end_pos].force_encoding(Encoding::UTF_8)
 # => "\"😍\""

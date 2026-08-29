@@ -42,6 +42,13 @@ typedef struct
 
 typedef struct
 {
+  const char *val;
+  size_t len;
+  int owned;
+} path_key_t;
+
+typedef struct
+{
   long start;
   long end;
 } range_t;
@@ -62,7 +69,7 @@ typedef struct
   enum path_type type;
   union
   {
-    hashkey_t key;
+    path_key_t key;
     long index;
   } value;
 } path_elem_t;
@@ -91,6 +98,8 @@ typedef struct
   size_t *starts;
   yajl_handle handle;
   size_t yajl_bytes_consumed;
+  const unsigned char *json_text;
+  size_t json_text_len;
 } scan_ctx;
 
 typedef struct
@@ -143,7 +152,7 @@ static void scan_options_init(scan_options *options, VALUE kwargs)
     if (kwargs_values[6] != Qundef)
       SCAN_OPTION_SET(options, allow_partial_values, RTEST(kwargs_values[6]));
     if (kwargs_values[7] != Qundef)
-      SCAN_OPTION_SET(options, symbolize_path_keys, RTEST(kwargs_values[8]));
+      SCAN_OPTION_SET(options, symbolize_path_keys, RTEST(kwargs_values[7]));
     if (kwargs_values[8] != Qundef)
       SCAN_OPTION_SET(options, with_roots_info, RTEST(kwargs_values[8]));
   }
@@ -157,6 +166,57 @@ static inline size_t scan_ctx_get_bytes_consumed(scan_ctx *ctx)
 static inline void scan_ctx_save_bytes_consumed(scan_ctx *ctx)
 {
   ctx->yajl_bytes_consumed += yajl_get_bytes_consumed(ctx->handle);
+}
+
+static inline int scan_ctx_ptr_in_json(scan_ctx *ctx, const unsigned char *ptr, size_t len)
+{
+  uintptr_t json_addr = (uintptr_t)ctx->json_text;
+  uintptr_t ptr_addr = (uintptr_t)ptr;
+  size_t offset;
+
+  if (ptr_addr < json_addr)
+    return false;
+  offset = (size_t)(ptr_addr - json_addr);
+  return offset <= ctx->json_text_len && len <= ctx->json_text_len - offset;
+}
+
+static inline void path_elem_init_key(path_elem_t *elem)
+{
+  elem->type = PATH_KEY;
+  elem->value.key.val = NULL;
+  elem->value.key.len = 0;
+  elem->value.key.owned = false;
+}
+
+static inline void path_elem_release_key(path_elem_t *elem)
+{
+  if (elem->type == PATH_KEY && elem->value.key.owned)
+    ruby_xfree((void *)elem->value.key.val);
+  path_elem_init_key(elem);
+}
+
+static void scan_ctx_clear_path_keys(scan_ctx *ctx)
+{
+  if (!ctx->current_path)
+    return;
+  for (int i = 0; i < ctx->max_path_len; i++)
+    path_elem_release_key(&ctx->current_path[i]);
+}
+
+static size_t scan_ctx_get_string_length(scan_ctx *ctx)
+{
+  size_t end = scan_ctx_get_bytes_consumed(ctx);
+  size_t pos = end - 1;
+
+  // YAJL has already validated that every quote inside the string is escaped.
+  while (--pos > 0)
+  {
+    if (ctx->json_text[pos] == '"' && ctx->json_text[pos - 1] != '\\')
+      return end - pos;
+  }
+
+  // The string starts at the beginning of the JSON input.
+  return end;
 }
 
 void scan_ctx_debug(scan_ctx *ctx)
@@ -204,8 +264,11 @@ void scan_ctx_debug(scan_ctx *ctx)
     switch (ctx->current_path[i].type)
     {
     case PATH_KEY:
-      fprintf(stderr, "'%.*s'", (int)ctx->current_path[i].value.key.len, ctx->current_path[i].value.key.val);
+    {
+      const path_key_t *key = &ctx->current_path[i].value.key;
+      fprintf(stderr, "'%.*s' (%s)", (int)key->len, key->val, key->owned ? "owned" : "borrowed");
       break;
+    }
     case PATH_INDEX:
       fprintf(stderr, "%ld", ctx->current_path[i].value.index);
       break;
@@ -350,7 +413,7 @@ static void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
       case T_BIGNUM:
       {
         paths[i].elems[j].type = MATCHER_INDEX;
-        paths[i].elems[j].value.index = FIX2LONG(entry);
+        paths[i].elems[j].value.index = NUM2LONG(entry);
       }
       break;
       default:
@@ -384,6 +447,11 @@ static void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
   ctx->paths = paths;
   ctx->paths_len = path_ary_len;
   ctx->current_path = (path_elem_t *)((unsigned char *)arena + current_path_off);
+  for (int i = 0; i < ctx->max_path_len; i++)
+  {
+    // Activate and initialize the key union member before release may inspect it.
+    path_elem_init_key(&ctx->current_path[i]);
+  }
   ctx->starts = (size_t *)((unsigned char *)arena + starts_off);
 }
 
@@ -418,9 +486,23 @@ static void scan_ctx_free(scan_ctx *ctx)
   // fprintf(stderr, "scan_ctx_free\n");
   if (!ctx)
     return;
-  if (!ctx->paths)
-    return;
-  ruby_xfree(ctx->paths);
+  scan_ctx_clear_path_keys(ctx);
+  if (ctx->paths)
+    ruby_xfree(ctx->paths);
+}
+
+static inline void scan_cleanup(scan_ctx *ctx, int free_ctx, yajl_handle handle)
+{
+  if (free_ctx)
+  {
+    scan_ctx_free(ctx);
+    ruby_xfree(ctx);
+  }
+  else
+  {
+    scan_ctx_clear_path_keys(ctx);
+  }
+  yajl_free(handle);
 }
 
 // noexcept
@@ -449,32 +531,31 @@ static VALUE create_point(scan_ctx *sctx, value_type type, size_t length)
   VALUE values[3], point;
   size_t curr_pos = scan_ctx_get_bytes_consumed(sctx);
   point = rb_ary_new_capa(3);
-  values[1] = ULL2NUM(curr_pos);
+  values[1] = SIZET2NUM(curr_pos);
   switch (type)
   {
-    /* FIXME: size_t can be longer than ulong */
   case null_value:
-    values[0] = ULL2NUM(curr_pos - length);
+    values[0] = SIZET2NUM(curr_pos - length);
     values[2] = null_sym;
     break;
   case boolean_value:
-    values[0] = ULL2NUM(curr_pos - length);
+    values[0] = SIZET2NUM(curr_pos - length);
     values[2] = boolean_sym;
     break;
   case number_value:
-    values[0] = ULL2NUM(curr_pos - length);
+    values[0] = SIZET2NUM(curr_pos - length);
     values[2] = number_sym;
     break;
   case string_value:
-    values[0] = ULL2NUM(curr_pos - length);
+    values[0] = SIZET2NUM(curr_pos - length);
     values[2] = string_sym;
     break;
   case object_value:
-    values[0] = ULL2NUM(sctx->starts[sctx->current_path_len]);
+    values[0] = SIZET2NUM(sctx->starts[sctx->current_path_len]);
     values[2] = object_sym;
     break;
   case array_value:
-    values[0] = ULL2NUM(sctx->starts[sctx->current_path_len]);
+    values[0] = SIZET2NUM(sctx->starts[sctx->current_path_len]);
     values[2] = array_sym;
     break;
   }
@@ -541,7 +622,7 @@ static void save_point(scan_ctx *sctx, value_type type, size_t length)
       case MATCHER_KEY:
         if (sctx->current_path[j].type != PATH_KEY ||
             sctx->current_path[j].value.key.len != sctx->paths[i].elems[j].value.key.len ||
-            strncmp(sctx->current_path[j].value.key.val, sctx->paths[i].elems[j].value.key.val, sctx->current_path[j].value.key.len))
+            memcmp(sctx->current_path[j].value.key.val, sctx->paths[i].elems[j].value.key.val, sctx->current_path[j].value.key.len))
           match = false;
         break;
       case MATCHER_INDEX:
@@ -615,11 +696,12 @@ static int scan_on_number(void *ctx, const char *val, size_t len)
 static int scan_on_string(void *ctx, const unsigned char *val, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
-  save_root_info(sctx, string_sym, len + 2);
+  size_t source_len = scan_ctx_ptr_in_json(sctx, val, len) ? checked_size_add(len, 2) : scan_ctx_get_string_length(sctx);
+  save_root_info(sctx, string_sym, source_len);
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
   increment_arr_index(sctx);
-  save_point(sctx, string_value, len + 2);
+  save_point(sctx, string_value, source_len);
   return true;
 }
 
@@ -637,7 +719,7 @@ static int scan_on_start_object(void *ctx)
   increment_arr_index(sctx);
   sctx->starts[sctx->current_path_len] = scan_ctx_get_bytes_consumed(sctx) - 1;
   if (sctx->current_path_len < sctx->max_path_len)
-    sctx->current_path[sctx->current_path_len].type = PATH_KEY;
+    path_elem_release_key(&sctx->current_path[sctx->current_path_len]);
   sctx->current_path_len++;
   return true;
 }
@@ -646,12 +728,26 @@ static int scan_on_start_object(void *ctx)
 static int scan_on_key(void *ctx, const unsigned char *key, size_t len)
 {
   scan_ctx *sctx = (scan_ctx *)ctx;
+  path_elem_t *path_elem;
   if (sctx->current_path_len > sctx->max_path_len)
     return true;
-  // Can't be called without scan_on_start_object being called before
-  // So current_path_len at least 1 and key.type is set to PATH_KEY;
-  sctx->current_path[sctx->current_path_len - 1].value.key.val = (char *)key;
-  sctx->current_path[sctx->current_path_len - 1].value.key.len = len;
+  // Can't be called without scan_on_start_object being called before,
+  // so current_path_len is at least 1.
+  path_elem = &sctx->current_path[sctx->current_path_len - 1];
+  path_elem_release_key(path_elem);
+  path_elem->value.key.len = len;
+  if (scan_ctx_ptr_in_json(sctx, key, len))
+  {
+    path_elem->value.key.val = (const char *)key;
+    path_elem->value.key.owned = false;
+  }
+  else
+  {
+    char *key_copy = ruby_xmalloc(len ? len : 1);
+    memcpy(key_copy, key, len);
+    path_elem->value.key.val = key_copy;
+    path_elem->value.key.owned = true;
+  }
   return true;
 }
 
@@ -680,6 +776,7 @@ static int scan_on_start_array(void *ctx)
   sctx->starts[sctx->current_path_len] = scan_ctx_get_bytes_consumed(sctx) - 1;
   if (sctx->current_path_len < sctx->max_path_len)
   {
+    path_elem_release_key(&sctx->current_path[sctx->current_path_len]);
     sctx->current_path[sctx->current_path_len].type = PATH_INDEX;
     sctx->current_path[sctx->current_path_len].value.index = -1;
   }
@@ -714,6 +811,14 @@ static size_t selector_size(const void *data)
   // starts
   if (ctx->starts != NULL)
     res += ctx->max_path_len * sizeof(size_t);
+  if (ctx->current_path != NULL)
+  {
+    for (int i = 0; i < ctx->max_path_len; i++)
+    {
+      if (ctx->current_path[i].type == PATH_KEY && ctx->current_path[i].value.key.owned)
+        res += ctx->current_path[i].value.key.len ? ctx->current_path[i].value.key.len : 1;
+    }
+  }
   if (ctx->paths != NULL)
   {
     res += ctx->paths_len * sizeof(paths_t);
@@ -994,6 +1099,8 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
     int init_state;
     ctx = ruby_xmalloc(sizeof(scan_ctx));
     ctx->paths = NULL;
+    ctx->current_path = NULL;
+    ctx->max_path_len = 0;
     init_args.ctx = ctx;
     init_args.path_ary = path_ary;
     rb_protect(scan_ctx_init_protected, (VALUE)&init_args, &init_state);
@@ -1011,6 +1118,8 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
     rb_ary_push(result, rb_ary_new());
   }
   scan_ctx_reset(ctx, result, roots_info_result, SCAN_OPTION(&options, with_path), SCAN_OPTION(&options, symbolize_path_keys));
+  ctx->json_text = (const unsigned char *)json_text;
+  ctx->json_text_len = json_text_len;
   // scan_ctx_debug(ctx);
 
   handle = yajl_alloc(&scan_callbacks, NULL, (void *)ctx);
@@ -1047,21 +1156,11 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
     {
       /* Ruby exception from callbacks or parse error;
        * clean up yajl + ctx before re-raising */
-      if (free_ctx)
-      {
-        scan_ctx_free(ctx);
-        ruby_xfree(ctx);
-      }
-      yajl_free(handle);
+      scan_cleanup(ctx, free_ctx, handle);
       rb_jump_tag(parse_state);
     }
   }
-  if (free_ctx)
-  {
-    scan_ctx_free(ctx);
-    ruby_xfree(ctx);
-  }
-  yajl_free(handle);
+  scan_cleanup(ctx, free_ctx, handle);
   if (roots_info_result != Qundef)
   {
     result = rb_ary_new_from_args(2, result, roots_info_result);

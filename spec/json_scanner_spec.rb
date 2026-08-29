@@ -2,6 +2,7 @@
 
 require_relative "spec_helper"
 require "json"
+require "objspace"
 
 RSpec.describe JsonScanner do
   it "has a version number" do
@@ -37,6 +38,9 @@ RSpec.describe JsonScanner do
       expect(
         described_class.scan('{"a": {"b": 1}}', [[:a, "b"]], with_path: true, symbolize_path_keys: true),
       ).to eq([[[%i[a b], [12, 13, :number]]]])
+      expect(
+        described_class.scan('{"a": {"b": 1}}', [[:a, "b"]], with_path: true, symbolize_path_keys: false),
+      ).to eq([[[%w[a b], [12, 13, :number]]]])
     end
 
     it "supports 'with_roots_info'" do
@@ -229,6 +233,73 @@ RSpec.describe JsonScanner do
       expect(JSON.parse(json.byteslice(elem[0]...elem[1]), quirks_mode: true)).to eq("Руби")
     end
 
+    it "returns source byte ranges for escaped strings" do
+      expect(described_class.scan('"\\u0061"', [[]])).to eq([[[0, 8, :string]]])
+      expect(described_class.scan('"a\\nb"', [[]])).to eq([[[0, 6, :string]]])
+      expect(described_class.scan('"\\uD83D\\uDE01"', [[]])).to eq([[[0, 14, :string]]])
+      expect(
+        described_class.scan('"\\"\\\\\\/\\b\\f\\n\\r\\t\\u0061\\uD83D\\uDE01"', [[]]),
+      ).to eq([[[0, 36, :string]]])
+      expect(described_class.scan('"\\n\\u0061\\""', [[]])).to eq([[[0, 12, :string]]])
+    end
+
+    it "returns source byte ranges for escaped quotes in every position" do
+      cases = [
+        ['"a\\"b\\n\\u0063\\\\"', [], [0, 16, :string]],
+        ['["a\\"b\\t\\u0064\\\\",0]', [0], [1, 17, :string]],
+        ['["prior\\"x",0,"a\\"b\\r\\u0065\\\\",1]', [2], [14, 30, :string]],
+        ['{"k\\u0065y":"a\\"b\\f\\u0066\\\\"}', ["key"], [12, 28, :string]],
+        ['[[{"key":"a\\"b\\b\\u0067\\\\"}]]', [0, 0, "key"], [9, 25, :string]],
+      ]
+
+      cases.each do |json, path, point|
+        expect(described_class.scan(json, [path])).to eq([[point]])
+      end
+    end
+
+    it "returns source byte ranges for unescaped strings" do
+      cases = [
+        ['"plain"', [], [0, 7, :string]],
+        ['["plain",0]', [0], [1, 8, :string]],
+        ['["prior",0,"plain",1]', [2], [11, 18, :string]],
+        ['{"key":"plain"}', ["key"], [7, 14, :string]],
+        ['""', [], [0, 2, :string]],
+        ['{"key":""}', ["key"], [7, 9, :string]],
+        ['"Руби"', [], [0, 10, :string]],
+      ]
+
+      cases.each do |json, path, point|
+        expect(described_class.scan(json, [path])).to eq([[point]])
+      end
+    end
+
+    it "returns source byte ranges for escaped strings after comments" do
+      expect(
+        described_class.scan('/* "before" */ "a\\"b\\t\\u0069\\\\"', [[]], allow_comments: true),
+      ).to eq([[[15, 31, :string]]])
+    end
+
+    it "returns source byte ranges for escaped strings among multiple roots" do
+      expect(
+        described_class.scan('0 "a\\"b\\n\\u0068\\\\" true', [[]], allow_multiple_values: true),
+      ).to eq([[[0, 1, :number], [2, 18, :string], [19, 23, :boolean]]])
+    end
+
+    it "distinguishes keys containing null bytes" do
+      expect(
+        described_class.scan('{"a\\u0000y":1}', [["a\0x"]], with_path: true),
+      ).to eq([[]])
+      expect(
+        described_class.scan('{"a\\u0000y":1}', [["a\0y"]], with_path: true),
+      ).to eq([[[["a\0y"], [12, 13, :number]]]])
+    end
+
+    it "matches object keys by their decoded value" do
+      expect(
+        described_class.scan('{"a\\u0062":"x\\u0079"}', [["ab"]], with_path: true),
+      ).to eq([[[["ab"], [11, 20, :string]]]])
+    end
+
     it "raises exceptions in utf-8" do
       bad_json = '{"ルビー": ["Руби" 1]}'.encode(Encoding::UTF_8)
       expect do
@@ -366,6 +437,10 @@ RSpec.describe JsonScanner do
         [{}, 2, []],
       )
     end
+
+    it "parses selected escaped strings" do
+      expect(described_class.parse('"\\u0061"', [[]])).to eq("a")
+    end
   end
 
   describe described_class::Selector do
@@ -385,6 +460,51 @@ RSpec.describe JsonScanner do
           JsonScanner.scan '{"abracadabra": 10}', conf
         end.uniq,
       ).to eq([[[[0, 19, :object]], [[16, 18, :number]]]])
+    end
+
+    it "does not depend on further matcher string changes" do
+      key = "long matcher".dup
+      selector = described_class.new([[key]])
+      key.replace("x")
+
+      expect(JsonScanner.scan('{"long matcher":1}', selector)).to eq([[[16, 17, :number]]])
+    end
+
+    it "releases decoded key copies after scanning" do
+      selector = described_class.new([["plain"]])
+      initial_size = ObjectSpace.memsize_of(selector)
+
+      JsonScanner.scan('{"pl\\u0061in":"v\\u0061lue"}', selector)
+      expect(ObjectSpace.memsize_of(selector)).to eq(initial_size)
+
+      expect { JsonScanner.scan('{"pl\\u0061in":', selector) }.to raise_error(JsonScanner::ParseError)
+      expect(ObjectSpace.memsize_of(selector)).to eq(initial_size)
+    end
+
+    it "survives heap compaction" do
+      skip "Ruby does not support heap compaction" unless GC.respond_to?(:verify_compaction_references)
+
+      selector = described_class.new([["short"]])
+      GC.verify_compaction_references(double_heap: true, toward: :empty)
+
+      expect(JsonScanner.scan('{"short":1}', selector)).to eq([[[9, 10, :number]]])
+    end
+
+    it "stores heap-backed integer matchers correctly" do
+      integer = 1 << ((0.size * 8) - 2)
+
+      expect(described_class.new([[integer]]).inspect).to eq(
+        "#<JsonScanner::Selector [[#{integer}]]>",
+      )
+    end
+
+    it "rejects reinitialization" do
+      selector = described_class.new([["initial"]])
+
+      expect do
+        selector.send(:initialize, [["replacement"]])
+      end.to raise_error(RuntimeError, "selector is already initialized")
+      expect(JsonScanner.scan('{"initial":1}', selector)).to eq([[[11, 12, :number]]])
     end
 
     it "re-raises exceptions" do
