@@ -1,15 +1,10 @@
 #include "json_scanner.h"
+#include "options.h"
 
 VALUE rb_mJsonScanner;
-VALUE rb_cJsonScannerSelector;
-VALUE rb_cJsonScannerOptions;
 VALUE rb_eJsonScannerParseError;
 #define BYTES_CONSUMED "bytes_consumed"
 ID rb_iv_bytes_consumed;
-#define SCAN_KWARGS_SIZE 9
-ID scan_kwargs_table[SCAN_KWARGS_SIZE];
-
-#include "options.h"
 
 VALUE null_sym;
 VALUE boolean_sym;
@@ -89,6 +84,7 @@ typedef struct
   int symbolize_path_keys;
   int paths_len;
   paths_t *paths;
+  size_t paths_arena_size;
   int current_path_len;
   int max_path_len;
   path_elem_t *current_path;
@@ -326,6 +322,7 @@ static void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
   // Assign ctx->paths early so ruby_xfree(ctx->paths) will free the arena
   // if a Ruby exception happens during the population loop below
   ctx->paths = paths;
+  ctx->paths_arena_size = arena_size;
   ctx->paths_len = 0;
   ctx->current_path = NULL;
   ctx->starts = NULL;
@@ -461,6 +458,8 @@ static inline void scan_cleanup(scan_ctx *ctx, int free_ctx, yajl_handle handle)
   }
   yajl_free(handle);
 }
+
+#include "selector.h"
 
 // noexcept
 static inline void increment_arr_index(scan_ctx *sctx)
@@ -751,9 +750,6 @@ static int scan_on_end_array(void *ctx)
   return true;
 }
 
-#include "selector.h"
-
-
 static yajl_callbacks scan_callbacks = {
     scan_on_null,
     scan_on_boolean,
@@ -966,13 +962,4 @@ Init_json_scanner(void)
   string_sym = rb_id2sym(rb_intern("string"));
   object_sym = rb_id2sym(rb_intern("object"));
   array_sym = rb_id2sym(rb_intern("array"));
-  scan_kwargs_table[0] = rb_intern("with_path");
-  scan_kwargs_table[1] = rb_intern("verbose_error");
-  scan_kwargs_table[2] = rb_intern("allow_comments");
-  scan_kwargs_table[3] = rb_intern("dont_validate_strings");
-  scan_kwargs_table[4] = rb_intern("allow_trailing_garbage");
-  scan_kwargs_table[5] = rb_intern("allow_multiple_values");
-  scan_kwargs_table[6] = rb_intern("allow_partial_values");
-  scan_kwargs_table[7] = rb_intern("symbolize_path_keys");
-  scan_kwargs_table[8] = rb_intern("with_roots_info");
 }
