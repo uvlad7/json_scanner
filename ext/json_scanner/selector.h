@@ -58,30 +58,29 @@ static VALUE selector_m_initialize(VALUE self, VALUE path_ary)
   return self;
 }
 
-static inline void *selector_relocate_pointer(void *arena, const void *other_arena, const void *pointer)
-{
-  return (unsigned char *)arena + ((const unsigned char *)pointer - (const unsigned char *)other_arena);
-}
-
 static void selector_copy_arena(scan_ctx *ctx, const scan_ctx *other_ctx)
 {
   void *arena;
+  intptr_t arena_offset;
 
+  if (other_ctx->paths == NULL)
+    return;
   arena = ruby_xmalloc(other_ctx->paths_arena_size);
   memcpy(arena, other_ctx->paths, other_ctx->paths_arena_size);
+  arena_offset = (intptr_t)arena - (intptr_t)other_ctx->paths;
   ctx->paths = arena;
   ctx->paths_arena_size = other_ctx->paths_arena_size;
   ctx->paths_len = other_ctx->paths_len;
   ctx->max_path_len = other_ctx->max_path_len;
-  ctx->current_path = selector_relocate_pointer(arena, other_ctx->paths, other_ctx->current_path);
-  ctx->starts = selector_relocate_pointer(arena, other_ctx->paths, other_ctx->starts);
+  ctx->current_path = (path_elem_t *)((intptr_t)other_ctx->current_path + arena_offset);
+  ctx->starts = (size_t *)((intptr_t)other_ctx->starts + arena_offset);
   for (int i = 0; i < ctx->paths_len; i++)
   {
-    ctx->paths[i].elems = selector_relocate_pointer(arena, other_ctx->paths, other_ctx->paths[i].elems);
+    ctx->paths[i].elems = (path_matcher_elem_t *)((intptr_t)other_ctx->paths[i].elems + arena_offset);
     for (int j = 0; j < ctx->paths[i].len; j++)
     {
       if (ctx->paths[i].elems[j].type == MATCHER_KEY)
-        ctx->paths[i].elems[j].value.key.val = selector_relocate_pointer(arena, other_ctx->paths, other_ctx->paths[i].elems[j].value.key.val);
+        ctx->paths[i].elems[j].value.key.val = (const char *)((intptr_t)other_ctx->paths[i].elems[j].value.key.val + arena_offset);
     }
   }
   for (int i = 0; i < ctx->max_path_len; i++)
@@ -97,8 +96,6 @@ static VALUE selector_m_initialize_copy(VALUE self, VALUE other)
     rb_raise(rb_eRuntimeError, "selector is already initialized");
   rb_call_super(1, &other);
   TypedData_Get_Struct(other, scan_ctx, &selector_type, other_ctx);
-  if (other_ctx->paths == NULL)
-    return self;
   selector_copy_arena(ctx, other_ctx);
   return self;
 }
