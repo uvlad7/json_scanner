@@ -1,6 +1,8 @@
 #ifndef JSON_SCANNER_SELECTOR_H
 #define JSON_SCANNER_SELECTOR_H 1
 
+static VALUE rb_cJsonScannerSelector;
+
 static void selector_free(void *data)
 {
   scan_ctx_free((scan_ctx *)data);
@@ -9,31 +11,16 @@ static void selector_free(void *data)
 
 static size_t selector_size(const void *data)
 {
+  // see ObjectSpace.memsize_of
   scan_ctx *ctx = (scan_ctx *)data;
   size_t res = sizeof(scan_ctx);
-  if (ctx->current_path != NULL)
-    res += ctx->max_path_len * sizeof(path_elem_t);
-  if (ctx->starts != NULL)
-    res += ctx->max_path_len * sizeof(size_t);
+  res += ctx->paths_arena_size;
   if (ctx->current_path != NULL)
   {
     for (int i = 0; i < ctx->max_path_len; i++)
     {
       if (ctx->current_path[i].type == PATH_KEY && ctx->current_path[i].value.key.owned)
         res += ctx->current_path[i].value.key.len ? ctx->current_path[i].value.key.len : 1;
-    }
-  }
-  if (ctx->paths != NULL)
-  {
-    res += ctx->paths_len * sizeof(paths_t);
-    for (int i = 0; i < ctx->paths_len; i++)
-    {
-      res += ctx->paths[i].len * sizeof(path_matcher_elem_t);
-      for (int j = 0; j < ctx->paths[i].len; j++)
-      {
-        if (ctx->paths[i].elems[j].type == MATCHER_KEY)
-          res += ctx->paths[i].elems[j].value.key.len;
-      }
     }
   }
   return res;
@@ -52,6 +39,7 @@ static VALUE selector_alloc(VALUE self)
 {
   scan_ctx *ctx = ruby_xmalloc(sizeof(scan_ctx));
   ctx->paths = NULL;
+  ctx->paths_arena_size = 0;
   ctx->paths_len = 0;
   ctx->current_path = NULL;
   ctx->max_path_len = 0;
@@ -67,6 +55,51 @@ static VALUE selector_m_initialize(VALUE self, VALUE path_ary)
   if (ctx->paths)
     rb_raise(rb_eRuntimeError, "selector is already initialized");
   scan_ctx_init(ctx, path_ary);
+  return self;
+}
+
+static inline void *selector_relocate_pointer(void *arena, const void *other_arena, const void *pointer)
+{
+  return (unsigned char *)arena + ((const unsigned char *)pointer - (const unsigned char *)other_arena);
+}
+
+static void selector_copy_arena(scan_ctx *ctx, const scan_ctx *other_ctx)
+{
+  void *arena;
+
+  arena = ruby_xmalloc(other_ctx->paths_arena_size);
+  memcpy(arena, other_ctx->paths, other_ctx->paths_arena_size);
+  ctx->paths = arena;
+  ctx->paths_arena_size = other_ctx->paths_arena_size;
+  ctx->paths_len = other_ctx->paths_len;
+  ctx->max_path_len = other_ctx->max_path_len;
+  ctx->current_path = selector_relocate_pointer(arena, other_ctx->paths, other_ctx->current_path);
+  ctx->starts = selector_relocate_pointer(arena, other_ctx->paths, other_ctx->starts);
+  for (int i = 0; i < ctx->paths_len; i++)
+  {
+    ctx->paths[i].elems = selector_relocate_pointer(arena, other_ctx->paths, other_ctx->paths[i].elems);
+    for (int j = 0; j < ctx->paths[i].len; j++)
+    {
+      if (ctx->paths[i].elems[j].type == MATCHER_KEY)
+        ctx->paths[i].elems[j].value.key.val = selector_relocate_pointer(arena, other_ctx->paths, other_ctx->paths[i].elems[j].value.key.val);
+    }
+  }
+  for (int i = 0; i < ctx->max_path_len; i++)
+    path_elem_init_key(&ctx->current_path[i]);
+  scan_ctx_reset(ctx, Qundef, Qundef, false, false);
+}
+
+static VALUE selector_m_initialize_copy(VALUE self, VALUE other)
+{
+  scan_ctx *ctx, *other_ctx;
+  TypedData_Get_Struct(self, scan_ctx, &selector_type, ctx);
+  if (ctx->paths)
+    rb_raise(rb_eRuntimeError, "selector is already initialized");
+  rb_call_super(1, &other);
+  TypedData_Get_Struct(other, scan_ctx, &selector_type, other_ctx);
+  if (other_ctx->paths == NULL)
+    return self;
+  selector_copy_arena(ctx, other_ctx);
   return self;
 }
 
@@ -119,6 +152,7 @@ static void init_selector(VALUE json_scanner_module)
   rb_cJsonScannerSelector = rb_define_class_under(json_scanner_module, "Selector", rb_cObject);
   rb_define_alloc_func(rb_cJsonScannerSelector, selector_alloc);
   rb_define_method(rb_cJsonScannerSelector, "initialize", selector_m_initialize, 1);
+  rb_define_method(rb_cJsonScannerSelector, "initialize_copy", selector_m_initialize_copy, 1);
   rb_define_method(rb_cJsonScannerSelector, "inspect", selector_m_inspect, 0);
   rb_define_method(rb_cJsonScannerSelector, "length", selector_m_length, 0);
   rb_define_alias(rb_cJsonScannerSelector, "size", "length");
