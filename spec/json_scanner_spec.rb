@@ -43,6 +43,15 @@ RSpec.describe JsonScanner do
       ).to eq([[[%w[a b], [12, 13, :number]]]])
     end
 
+    it "does not share results between matching selectors" do
+      results = described_class.scan('{"a": 42}', [["a"], ["a"]], with_path: true)
+
+      expect(results).to eq([[[["a"], [6, 8, :number]]], [[["a"], [6, 8, :number]]]])
+      expect(results[0][0]).not_to equal(results[1][0])
+      expect(results[0][0][0]).not_to equal(results[1][0][0])
+      expect(results[0][0][1]).not_to equal(results[1][0][1])
+    end
+
     it "supports 'with_roots_info'" do
       values = [
         [1, 3, :object],
@@ -456,6 +465,10 @@ RSpec.describe JsonScanner do
 
     it "parses selected escaped strings" do
       expect(described_class.parse('"\\u0061"', [[]])).to eq("a")
+    end
+
+    it "handles overlapping selectors" do
+      expect(described_class.parse('{"a": 42}', [["a"], [described_class::ANY_KEY]])).to eq({ "a" => 42 })
     end
   end
 
