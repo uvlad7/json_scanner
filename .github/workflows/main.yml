@@ -17,11 +17,13 @@ jobs:
           - '3.0.7'
           - '3.2.9'
           - '3.4.5'
+          - '4.0'
+          - head
           - '2.7.8'
           - '2.3.8'
           - '2.5.9'
     env:
-      BUNDLE_GEMFILE: ${{ (matrix.ruby >= '3.4' && 'Gemfile_ruby_3_4') || (matrix.ruby >= '2.7' && 'Gemfile') || (matrix.ruby >= '2.5' && 'Gemfile_ruby_2_5') || 'Gemfile_ruby_2_3' }}
+      BUNDLE_GEMFILE: ${{ ((matrix.ruby == 'head' || matrix.ruby >= '3.4') && 'Gemfile_ruby_3_4') || (matrix.ruby >= '2.7' && 'Gemfile') || (matrix.ruby >= '2.5' && 'Gemfile_ruby_2_5') || 'Gemfile_ruby_2_3' }}
 
     steps:
     - name: Dependencies
@@ -34,7 +36,7 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
-        rubygems: ${{ (matrix.ruby >= '2.7' && '3.4.20') || '3.2.3' }}
+        rubygems: ${{ ((matrix.ruby == 'head' || matrix.ruby >= '2.7') && '3.4.20') || '3.2.3' }}
     - name: Run the default task
       run: bundle exec rake
     - name: Run valgrind
