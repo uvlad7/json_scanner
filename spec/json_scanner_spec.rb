@@ -460,6 +460,12 @@ RSpec.describe JsonScanner do
   end
 
   describe described_class::Selector do
+    it "rejects scanning with an uninitialized selector" do
+      selector = described_class.allocate
+
+      expect { JsonScanner.scan("{}", selector) }.to raise_error(RuntimeError, "selector is not initialized")
+    end
+
     it "saves state" do
       key = "abracadabra".dup
       conf = described_class.new [[], [key]]
@@ -484,6 +490,23 @@ RSpec.describe JsonScanner do
       key.replace("x")
 
       expect(JsonScanner.scan('{"long matcher":1}', selector)).to eq([[[16, 17, :number]]])
+    end
+
+    it "copies selector state" do
+      selector = described_class.new([[], [0, "a"], [0], [(0...2)], [0, JsonScanner::ANY_KEY]])
+
+      [selector.dup, selector.clone].each do |copy|
+        expect(copy.inspect).to eq(selector.inspect)
+        expect(JsonScanner.scan('[{"a":1},2]', copy)).to eq(
+          [
+            [[0, 11, :array]],
+            [[6, 7, :number]],
+            [[1, 8, :object]],
+            [[1, 8, :object], [9, 10, :number]],
+            [[6, 7, :number]],
+          ],
+        )
+      end
     end
 
     it "releases decoded key copies after scanning" do
@@ -543,6 +566,68 @@ RSpec.describe JsonScanner do
   end
 
   describe described_class::Options do
+    it "makes allocated options usable with defaults" do
+      options = described_class.allocate
+
+      expect(options.inspect).to eq("#<JsonScanner::Options {}>")
+      expect(JsonScanner.scan("1", [[]], options)).to eq([[[0, 1, :number]]])
+    end
+
+    it "compares option state" do
+      options = described_class.new(allow_comments: true, allow_trailing_garbage: false)
+
+      expect(options).to eq(described_class.new(allow_comments: true, allow_trailing_garbage: false))
+      expect(options).not_to eq(described_class.new(allow_comments: true))
+      expect(options).not_to eq(Object.new)
+    end
+
+    it "has option accessors" do
+      options = described_class.new
+      values = {
+        with_path: true,
+        verbose_error: false,
+        allow_comments: true,
+        dont_validate_strings: false,
+        allow_trailing_garbage: true,
+        allow_multiple_values: false,
+        allow_partial_values: true,
+        symbolize_path_keys: false,
+        with_roots_info: true,
+      }
+      values.each do |name, value|
+        expect(options.public_send(name)).to be_nil
+        expect(options.public_send("#{name}=", value)).to eq(value)
+        expect(options.public_send(name)).to eq(value)
+      end
+      expect(JsonScanner.scan("1 trailing", [[]], options)).to eq([[[[[], [0, 1, :number]]]], [[:number, 0]]])
+    end
+
+    it "rejects setters when frozen" do
+      options = described_class.new
+      options.freeze
+      expect { options.allow_comments = false }.to raise_error(
+        defined?(FrozenError) ? FrozenError : RuntimeError,
+        /can't modify frozen JsonScanner::Options/,
+      )
+    end
+
+    it "is ractor-shareable when frozen" do
+      skip "Ruby does not support ractors" unless defined?(Ractor)
+
+      options = described_class.new(allow_trailing_garbage: true)
+      expect(Ractor.make_shareable(options)).to equal(options)
+      expect(options).to be_frozen
+    end
+
+    it "copies option state" do
+      options = described_class.new(allow_trailing_garbage: true)
+
+      [options.dup, options.clone].each do |copy|
+        expect(copy.inspect).to eq(options.inspect)
+        expect(JsonScanner.scan("1 trailing", [[]], copy)).to eq([[[0, 1, :number]]])
+      end
+    end
+
     it "allows to reuse options" do
       options = described_class.new(allow_trailing_garbage: true, allow_partial_values: true)
       expect(
