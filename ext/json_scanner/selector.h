@@ -42,15 +42,11 @@ static const rb_data_type_t selector_type = {
 
 static VALUE selector_alloc(VALUE self)
 {
-  scan_ctx *ctx = ruby_xmalloc(sizeof(scan_ctx));
-  ctx->paths = NULL;
-  ctx->paths_arena_size = 0;
-  ctx->paths_len = 0;
-  ctx->current_path = NULL;
-  ctx->max_path_len = 0;
-  ctx->starts = NULL;
+  VALUE object;
+  scan_ctx *ctx;
+  object = TypedData_Make_Struct(self, scan_ctx, &selector_type, ctx);
   scan_ctx_reset(ctx, Qundef, Qundef, false, false);
-  return TypedData_Wrap_Struct(self, &selector_type, ctx);
+  return object;
 }
 
 static VALUE selector_m_initialize(VALUE self, VALUE path_ary)

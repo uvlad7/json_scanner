@@ -783,6 +783,8 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   {
     free_ctx = false;
     TypedData_Get_Struct(path_ary, scan_ctx, &selector_type, ctx);
+    if (!ctx->paths)
+      rb_raise(rb_eRuntimeError, "selector is not initialized");
   }
   else
   {

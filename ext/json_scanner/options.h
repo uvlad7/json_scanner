@@ -44,9 +44,7 @@ static ID scan_kwargs_table[SCAN_KWARGS_SIZE];
 
 static void scan_options_init(scan_options *options, VALUE kwargs)
 {
-#define SCAN_OPTION_CLEAR(field) options->field = 0;
-  OPTIONS_FIELDS(SCAN_OPTION_CLEAR)
-#undef SCAN_OPTION_CLEAR
+  memset(options, 0, sizeof(*options));
   if (kwargs != Qnil)
   {
     VALUE kwargs_values[SCAN_KWARGS_SIZE];
@@ -79,8 +77,11 @@ static const rb_data_type_t options_type = {
 
 static VALUE options_alloc(VALUE self)
 {
+  VALUE object;
   scan_options *options;
-  return TypedData_Make_Struct(self, scan_options, &options_type, options);
+  object = TypedData_Make_Struct(self, scan_options, &options_type, options);
+  memset(options, 0, sizeof(*options));
+  return object;
 }
 
 static VALUE options_m_initialize(int argc, VALUE *argv, VALUE self)

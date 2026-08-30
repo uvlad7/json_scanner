@@ -460,6 +460,12 @@ RSpec.describe JsonScanner do
   end
 
   describe described_class::Selector do
+    it "rejects scanning with an uninitialized selector" do
+      selector = described_class.allocate
+
+      expect { JsonScanner.scan("{}", selector) }.to raise_error(RuntimeError, "selector is not initialized")
+    end
+
     it "saves state" do
       key = "abracadabra".dup
       conf = described_class.new [[], [key]]
@@ -560,6 +566,13 @@ RSpec.describe JsonScanner do
   end
 
   describe described_class::Options do
+    it "makes allocated options usable with defaults" do
+      options = described_class.allocate
+
+      expect(options.inspect).to eq("#<JsonScanner::Options {}>")
+      expect(JsonScanner.scan("1", [[]], options)).to eq([[[0, 1, :number]]])
+    end
+
     it "compares option state" do
       options = described_class.new(allow_comments: true, allow_trailing_garbage: false)
 
