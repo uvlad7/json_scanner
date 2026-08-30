@@ -1,10 +1,6 @@
 #ifndef JSON_SCANNER_OPTIONS_H
 #define JSON_SCANNER_OPTIONS_H 1
 
-#include "ruby.h"
-#include "ruby/intern.h"
-#include "ruby/version.h"
-
 typedef struct
 {
   int with_path;
