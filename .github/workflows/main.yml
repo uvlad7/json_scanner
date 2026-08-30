@@ -41,5 +41,5 @@ jobs:
     - name: Run the default task
       run: bundle exec rake
     - name: Run valgrind
-      if: ${{ matrix.ruby != 'head' && matrix.ruby >= '2.7' }}
+      if: ${{ matrix.ruby == 'head' || matrix.ruby >= '2.7' }}
       run: bundle exec rake spec:valgrind
