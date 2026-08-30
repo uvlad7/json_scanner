@@ -70,6 +70,9 @@ static void selector_copy_arena(scan_ctx *ctx, const scan_ctx *other_ctx)
   memcpy(arena, other_ctx->paths, other_ctx->paths_arena_size);
   arena_offset = (intptr_t)arena - (intptr_t)other_ctx->paths;
   ctx->paths = arena;
+  ctx->paths_arena_size = other_ctx->paths_arena_size;
+  ctx->paths_len = other_ctx->paths_len;
+  ctx->max_path_len = other_ctx->max_path_len;
   ctx->current_path = (path_elem_t *)((intptr_t)other_ctx->current_path + arena_offset);
   ctx->starts = (size_t *)((intptr_t)other_ctx->starts + arena_offset);
   for (int i = 0; i < ctx->paths_len; i++)
@@ -94,8 +97,16 @@ static VALUE selector_m_initialize_copy(VALUE self, VALUE other)
   rb_call_super(1, &other);
   TypedData_Get_Struct(other, scan_ctx, &selector_type, other_ctx);
   *ctx = *other_ctx;
-  selector_copy_arena(ctx, other_ctx);
+  // An allocation error below must leave a manually allocated selector
+  // uninitialized, rather than borrowing the source selector's arena.
+  ctx->paths = NULL;
+  ctx->paths_arena_size = 0;
+  ctx->paths_len = 0;
+  ctx->current_path = NULL;
+  ctx->max_path_len = 0;
+  ctx->starts = NULL;
   scan_ctx_reset(ctx, Qundef, Qundef, false, false);
+  selector_copy_arena(ctx, other_ctx);
   return self;
 }
 
