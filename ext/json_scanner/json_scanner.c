@@ -1,15 +1,12 @@
 #include "json_scanner.h"
+#include "scan_ctx.h"
+#include "options.h"
+#include "selector.h"
 
 VALUE rb_mJsonScanner;
-VALUE rb_cJsonScannerSelector;
-VALUE rb_cJsonScannerOptions;
 VALUE rb_eJsonScannerParseError;
 #define BYTES_CONSUMED "bytes_consumed"
 ID rb_iv_bytes_consumed;
-#define SCAN_KWARGS_SIZE 9
-ID scan_kwargs_table[SCAN_KWARGS_SIZE];
-
-#include "options.h"
 
 VALUE null_sym;
 VALUE boolean_sym;
@@ -20,89 +17,6 @@ VALUE array_sym;
 
 VALUE any_key_sym;
 
-enum matcher_type
-{
-  MATCHER_KEY,
-  MATCHER_INDEX,
-  MATCHER_ANY_KEY,
-  MATCHER_INDEX_RANGE,
-  // MATCHER_KEYS_LIST,
-  // MATCHER_KEY_REGEX,
-};
-
-enum path_type
-{
-  PATH_KEY,
-  PATH_INDEX,
-};
-
-typedef struct
-{
-  const char *val;
-  size_t len;
-} hashkey_t;
-
-typedef struct
-{
-  const char *val;
-  size_t len;
-  int owned;
-} path_key_t;
-
-typedef struct
-{
-  long start;
-  long end;
-} range_t;
-
-typedef struct
-{
-  enum matcher_type type;
-  union
-  {
-    hashkey_t key;
-    long index;
-    range_t range;
-  } value;
-} path_matcher_elem_t;
-
-typedef struct
-{
-  enum path_type type;
-  union
-  {
-    path_key_t key;
-    long index;
-  } value;
-} path_elem_t;
-
-typedef struct
-{
-  path_matcher_elem_t *elems;
-  int len;
-  int matched_depth;
-} paths_t;
-
-typedef struct
-{
-  int with_path;
-  int symbolize_path_keys;
-  int paths_len;
-  paths_t *paths;
-  int current_path_len;
-  int max_path_len;
-  path_elem_t *current_path;
-  // Easier to use a Ruby array for result than convert later
-  // must be supplied by the caller and RB_GC_GUARD-ed if it isn't on the stack
-  VALUE points_list;
-  VALUE roots_info_list;
-  // by depth
-  size_t *starts;
-  yajl_handle handle;
-  size_t yajl_bytes_consumed;
-  const unsigned char *json_text;
-  size_t json_text_len;
-} scan_ctx;
 
 static inline size_t scan_ctx_get_bytes_consumed(scan_ctx *ctx)
 {
@@ -323,6 +237,7 @@ static void scan_ctx_init(scan_ctx *ctx, VALUE path_ary)
   // Assign ctx->paths early so ruby_xfree(ctx->paths) will free the arena
   // if a Ruby exception happens during the population loop below
   ctx->paths = paths;
+  ctx->paths_arena_size = arena_size;
   ctx->paths_len = 0;
   ctx->current_path = NULL;
   ctx->starts = NULL;
@@ -740,9 +655,6 @@ static int scan_on_end_array(void *ctx)
   return true;
 }
 
-#include "selector.h"
-
-
 static yajl_callbacks scan_callbacks = {
     scan_on_null,
     scan_on_boolean,
@@ -860,6 +772,8 @@ static VALUE scan(int argc, VALUE *argv, VALUE self)
   {
     free_ctx = false;
     TypedData_Get_Struct(path_ary, scan_ctx, &selector_type, ctx);
+    if (!ctx->paths)
+      rb_raise(rb_eRuntimeError, "selector is not initialized");
   }
   else
   {
@@ -955,13 +869,4 @@ Init_json_scanner(void)
   string_sym = rb_id2sym(rb_intern("string"));
   object_sym = rb_id2sym(rb_intern("object"));
   array_sym = rb_id2sym(rb_intern("array"));
-  scan_kwargs_table[0] = rb_intern("with_path");
-  scan_kwargs_table[1] = rb_intern("verbose_error");
-  scan_kwargs_table[2] = rb_intern("allow_comments");
-  scan_kwargs_table[3] = rb_intern("dont_validate_strings");
-  scan_kwargs_table[4] = rb_intern("allow_trailing_garbage");
-  scan_kwargs_table[5] = rb_intern("allow_multiple_values");
-  scan_kwargs_table[6] = rb_intern("allow_partial_values");
-  scan_kwargs_table[7] = rb_intern("symbolize_path_keys");
-  scan_kwargs_table[8] = rb_intern("with_roots_info");
 }
