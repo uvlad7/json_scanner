@@ -475,7 +475,7 @@ static void save_point(scan_ctx *sctx, value_type type, size_t length)
   // TODO: Abort parsing if all paths are matched and no more mathces are possible: only trivial key/index matchers at the current level
   // TODO: Don't re-compare already matched prefixes; hard to invalidate, though
   // TODO: Might fail in case of no memory
-  VALUE point = Qundef, path;
+  VALUE point, path;
   int match;
   for (int i = 0; i < sctx->paths_len; i++)
   {
@@ -514,14 +514,13 @@ static void save_point(scan_ctx *sctx, value_type type, size_t length)
     }
     if (match)
     {
-      if (point == Qundef)
+      // Results are mutable Ruby arrays. Sharing one between matching selectors saves a small allocation,
+      // but forces callers to dup it before mutation. Allocate only for actual matches and keep them independent.
+      point = create_point(sctx, type, length);
+      if (sctx->with_path)
       {
-        point = create_point(sctx, type, length);
-        if (sctx->with_path)
-        {
-          path = create_path(sctx);
-          point = rb_ary_new_from_args(2, path, point);
-        }
+        path = create_path(sctx);
+        point = rb_ary_new_from_args(2, path, point);
       }
       rb_ary_push(rb_ary_entry(sctx->points_list, i), point);
     }
