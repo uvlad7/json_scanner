@@ -77,11 +77,9 @@ static const rb_data_type_t options_type = {
 
 static VALUE options_alloc(VALUE self)
 {
-  VALUE object;
   scan_options *options;
-  object = TypedData_Make_Struct(self, scan_options, &options_type, options);
-  memset(options, 0, sizeof(*options));
-  return object;
+  // TypedData_Make_Struct zeroes options.
+  return TypedData_Make_Struct(self, scan_options, &options_type, options);
 }
 
 static VALUE options_m_initialize(int argc, VALUE *argv, VALUE self)
