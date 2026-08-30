@@ -73,10 +73,8 @@ static void selector_copy_arena(scan_ctx *ctx, const scan_ctx *other_ctx)
   arena = ruby_xmalloc(other_ctx->paths_arena_size);
   memcpy(arena, other_ctx->paths, other_ctx->paths_arena_size);
   arena_offset = (intptr_t)arena - (intptr_t)other_ctx->paths;
+  *ctx = *other_ctx;
   ctx->paths = arena;
-  ctx->paths_arena_size = other_ctx->paths_arena_size;
-  ctx->paths_len = other_ctx->paths_len;
-  ctx->max_path_len = other_ctx->max_path_len;
   ctx->current_path = (path_elem_t *)((intptr_t)other_ctx->current_path + arena_offset);
   ctx->starts = (size_t *)((intptr_t)other_ctx->starts + arena_offset);
   for (int i = 0; i < ctx->paths_len; i++)
