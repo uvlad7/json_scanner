@@ -3,7 +3,9 @@
 
 ruby_ver = ARGV.shift
 
-gemfile = if ruby_ver >= "3.4"
+gemfile = if ruby_ver >= "4.1"
+            "Gemfile_ruby_4_1"
+          elsif ruby_ver >= "3.4"
             "Gemfile_ruby_3_4"
           elsif ruby_ver < "2.7"
             ruby_ver >= "2.5" ? "Gemfile_ruby_2_5" : "Gemfile_ruby_2_3"

@@ -44,11 +44,11 @@ if RUBY_VERSION >= "2.7"
   # gem "json-next", "~> 1.2"
   gem "rainbow", "~> 3.1"
   # gem "rb_json5", "~> 0.3.0" - extremely slow
-  gem "ffi-yajl", "~> 3.0"
+  gem "ffi-yajl", "~> 3.0" if RUBY_VERSION < "4.1"
   gem "simdjson", "~> 1.0"
-  gem "yaji", "~> 0.3.6"
+  gem "yaji", "~> 0.3.6" if RUBY_VERSION < "4.1"
   gem "yajl-ffi", "~> 1.0"
-  gem "yajl-ruby", "~> 1.4"
+  gem "yajl-ruby", "~> 1.4" if RUBY_VERSION < "4.1"
 end
 
 # test on the oldest version of the json gem we can expect based on the required_ruby_version
