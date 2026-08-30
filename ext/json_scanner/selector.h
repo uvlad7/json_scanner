@@ -44,6 +44,7 @@ static VALUE selector_alloc(VALUE self)
 {
   VALUE object;
   scan_ctx *ctx;
+  // TypedData_Make_Struct zeroes ctx, leaving it safe for scan_ctx_free.
   object = TypedData_Make_Struct(self, scan_ctx, &selector_type, ctx);
   scan_ctx_reset(ctx, Qundef, Qundef, false, false);
   return object;
