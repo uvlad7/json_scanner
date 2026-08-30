@@ -1,6 +1,11 @@
 #ifndef JSON_SCANNER_SELECTOR_H
 #define JSON_SCANNER_SELECTOR_H 1
 
+static void scan_ctx_init(scan_ctx *ctx, VALUE path_ary);
+static void scan_ctx_reset(scan_ctx *ctx, VALUE points_list, VALUE roots_info_list, int with_path, int symbolize_path_keys);
+static void scan_ctx_free(scan_ctx *ctx);
+static inline void path_elem_init_key(path_elem_t *elem);
+
 static VALUE rb_cJsonScannerSelector;
 
 static void selector_free(void *data)
