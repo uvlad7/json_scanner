@@ -73,7 +73,6 @@ static void selector_copy_arena(scan_ctx *ctx, const scan_ctx *other_ctx)
   arena = ruby_xmalloc(other_ctx->paths_arena_size);
   memcpy(arena, other_ctx->paths, other_ctx->paths_arena_size);
   arena_offset = (intptr_t)arena - (intptr_t)other_ctx->paths;
-  *ctx = *other_ctx;
   ctx->paths = arena;
   ctx->current_path = (path_elem_t *)((intptr_t)other_ctx->current_path + arena_offset);
   ctx->starts = (size_t *)((intptr_t)other_ctx->starts + arena_offset);
@@ -88,7 +87,6 @@ static void selector_copy_arena(scan_ctx *ctx, const scan_ctx *other_ctx)
   }
   for (int i = 0; i < ctx->max_path_len; i++)
     path_elem_init_key(&ctx->current_path[i]);
-  scan_ctx_reset(ctx, Qundef, Qundef, false, false);
 }
 
 static VALUE selector_m_initialize_copy(VALUE self, VALUE other)
@@ -99,7 +97,9 @@ static VALUE selector_m_initialize_copy(VALUE self, VALUE other)
     rb_raise(rb_eRuntimeError, "selector is already initialized");
   rb_call_super(1, &other);
   TypedData_Get_Struct(other, scan_ctx, &selector_type, other_ctx);
+  *ctx = *other_ctx;
   selector_copy_arena(ctx, other_ctx);
+  scan_ctx_reset(ctx, Qundef, Qundef, false, false);
   return self;
 }
 
