@@ -50,10 +50,12 @@ if RUBY_VERSION >= "2.7"
     require "oj"
     require "json_scanner"
     require "simdjson"
-    require "yajl"
-    require "yaji"
     require "yajl/ffi"
-    require "ffi_yajl"
+    if RUBY_VERSION < "4.1"
+      require "yajl"
+      require "yaji"
+      require "ffi_yajl"
+    end
 
     json_str = File.read("spec/graphql_response.json")
     json_path = %i[data search searchResult paginationV2 maxPage]
@@ -84,14 +86,16 @@ if RUBY_VERSION >= "2.7"
     page_size_with_simdjson = lambda do
       Simdjson.parse(json_str).dig(*json_path_str)
     end
-    page_size_with_yajl_ruby = lambda do
-      Yajl::Parser.parse(json_str, symbolize_names: true).dig(*json_path)
-    end
-    page_size_with_yaji = lambda do
-      YAJI::Parser.new(json_str).each(yaji_path).first
-    end
-    page_size_with_ffi_yajl = lambda do
-      FFI_Yajl::Parser.parse(json_str, symbolize_names: true).dig(*json_path)
+    if RUBY_VERSION < "4.1"
+      page_size_with_yajl_ruby = lambda do
+        Yajl::Parser.parse(json_str, symbolize_names: true).dig(*json_path)
+      end
+      page_size_with_yaji = lambda do
+        YAJI::Parser.new(json_str).each(yaji_path).first
+      end
+      page_size_with_ffi_yajl = lambda do
+        FFI_Yajl::Parser.parse(json_str, symbolize_names: true).dig(*json_path)
+      end
     end
 
     yajl_ffi_parser = Yajl::FFI::Parser.new
@@ -124,10 +128,14 @@ if RUBY_VERSION >= "2.7"
       page_size_with_json_scanner_scan.call,
       page_size_with_json_scanner_parse.call,
       page_size_with_simdjson.call,
-      page_size_with_yajl_ruby.call,
-      page_size_with_yaji.call,
-      page_size_with_ffi_yajl.call,
     ]
+    if RUBY_VERSION < "4.1"
+      results.push(
+        page_size_with_yajl_ruby.call,
+        page_size_with_yaji.call,
+        page_size_with_ffi_yajl.call,
+      )
+    end
     results_report = "path #{json_path.map(&:inspect).join(", ")}; extracted values: #{results}"
     puts Rainbow(results_report).send(results.uniq.size == 1 ? :green : :red)
 
@@ -140,9 +148,11 @@ if RUBY_VERSION >= "2.7"
       x.report("json_scanner scan", &page_size_with_json_scanner_scan)
       x.report("json_scanner parse", &page_size_with_json_scanner_parse)
       x.report("simdjson", &page_size_with_simdjson)
-      x.report("yajl-ruby", &page_size_with_yajl_ruby)
-      x.report("yaji", &page_size_with_yaji)
-      x.report("ffi-yajl", &page_size_with_ffi_yajl)
+      if RUBY_VERSION < "4.1"
+        x.report("yajl-ruby", &page_size_with_yajl_ruby)
+        x.report("yaji", &page_size_with_yaji)
+        x.report("ffi-yajl", &page_size_with_ffi_yajl)
+      end
       x.report("yajl-ffi (stub)", &stub_page_size_with_yajl_ffi)
       type == :memory ? x.compare!(memory: :allocated) : x.compare!
     end.curry

@@ -23,9 +23,8 @@ jobs:
           - '2.3.8'
           - '2.5.9'
     env:
-      BUNDLE_GEMFILE: ${{ ((matrix.ruby == 'head' || matrix.ruby >= '3.4') && 'Gemfile_ruby_3_4') || (matrix.ruby >= '2.7' && 'Gemfile') || (matrix.ruby >= '2.5' && 'Gemfile_ruby_2_5') || 'Gemfile_ruby_2_3' }}
+      BUNDLE_GEMFILE: ${{ (matrix.ruby == 'head' && 'Gemfile_ruby_4_1') || (matrix.ruby >= '3.4' && 'Gemfile_ruby_3_4') || (matrix.ruby >= '2.7' && 'Gemfile') || (matrix.ruby >= '2.5' && 'Gemfile_ruby_2_5') || 'Gemfile_ruby_2_3' }}
       BUNDLE_FORCE_RUBY_PLATFORM: ${{ matrix.ruby == 'head' && 'true' || '' }}
-      BUNDLE_WITHOUT: ${{ matrix.ruby == 'head' && 'benchmarks console memcheck' || '' }}
 
     steps:
     - name: Dependencies
