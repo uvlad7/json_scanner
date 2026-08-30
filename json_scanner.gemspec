@@ -24,7 +24,7 @@ Gem::Specification.new do |spec|
   File.basename(__FILE__)
   spec.files = [
     *(Dir["{lib,sig}/**/*"] - Dir["lib/**/*.{so,dylib,dll}"]),
-    *Dir["ext/json_scanner/{extconf.rb,json_scanner.c,json_scanner.h}"],
+    *Dir["ext/json_scanner/{extconf.rb,json_scanner.c,json_scanner.h,options.h,selector.h}"],
   ].reject { |f| File.directory?(f) }
   spec.require_paths = ["lib"]
   spec.extensions = ["ext/json_scanner/extconf.rb"]
