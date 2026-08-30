@@ -37,7 +37,7 @@ if RUBY_VERSION >= "2.7"
     RubyMemcheck::RSpec::RakeTask.new(valgrind: :compile)
   end
 
-  # rubocop:disable Metrics/BlockLength
+  # rubocop:disable Metrics/BlockLength, Style/DirectiveScope
   task bench: :compile do
     require "benchmark"
     require "benchmark/ips"
@@ -59,7 +59,7 @@ if RUBY_VERSION >= "2.7"
     json_path = %i[data search searchResult paginationV2 maxPage]
     json_path_str = json_path.map { |p| p.is_a?(Symbol) ? p.to_s : p }
     json_selector = JsonScanner::Selector.new([json_path])
-    yaji_path = "/#{json_path.map(&:to_s).join("/")}"
+    yaji_path = "/#{json_path.join("/")}"
 
     # TODO: better title display
     puts "\n\n\n"
@@ -152,5 +152,5 @@ if RUBY_VERSION >= "2.7"
     puts Rainbow("=" * title.size).color(136, 17, 2)
     puts "\n\n\n"
   end
-  # rubocop:enable Metrics/BlockLength
+  # rubocop:enable Metrics/BlockLength, Style/DirectiveScope
 end
